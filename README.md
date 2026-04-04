@@ -161,3 +161,4 @@ Each cycle enriches the wiki. Q&A answers can become new concept articles. Visua
 ---
 
 *Last updated: 2026-04-03*
+Inspired by: https://x.com/karpathy/status/2039805659525644595 
