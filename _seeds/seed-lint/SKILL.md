@@ -55,7 +55,15 @@ status: draft
 
 Find articles with no incoming links — isolated nodes in the graph.
 
-Method: For each article title, use Grep to count how many other wiki files reference `[[{{Title}}]]`. Articles with 0 references are orphans.
+**Single-pass method** (efficient for large wikis):
+1. Run one Grep sweep across all wiki files to collect every `[[wikilink]]` mentioned:
+   ```
+   Grep pattern="\[\[([^\]]+)\]\]" path="wiki/" glob="*.md" output_mode="content"
+   ```
+2. Build a frequency map: count occurrences of every `[[Title]]` across all files
+3. For each article title in the file list, check if its title appears 0 times in the frequency map → orphan
+
+This is one grep instead of N greps.
 
 **Auto-fix option**: For each orphan, identify which topic hub it should belong to based on its tags/content. Add it to the hub and add the hub backlink to the orphan.
 
@@ -65,10 +73,9 @@ Method: For each article title, use Grep to count how many other wiki files refe
 
 Find one-directional links that should be bidirectional.
 
-For each article A that links to article B:
-- Read article B
-- Check if B links back to A anywhere (frontmatter sources, body, See Also)
-- If not, flag as missing backlink
+**Reuse the frequency map from Check 2.** For each link `A → B` found in the sweep:
+- Verify that B's file content contains `[[A]]` somewhere (frontmatter sources, body, See Also)
+- If not, flag as missing backlink — do NOT re-grep per article; use the already-collected link data
 
 **Auto-fix option**: Add missing backlinks. For concept→concept: add to "See Also" or "Related Concepts". For concept→source: add to source's "Concepts Extracted". Ask user before auto-fixing if there are >10 fixes.
 
@@ -135,6 +142,20 @@ Suggest: "These {{N}} concepts have no topic hub. Suggested groupings: [cluster 
 
 ---
 
+## Check 9: Raw Source Coverage
+
+Find files in `raw/` that have no corresponding source summary in `wiki/sources/`.
+
+Method:
+1. `Glob raw/*.md` — collect all raw file names (strip `raw/` prefix and `.md` suffix)
+2. `Glob wiki/sources/*.md` — collect all summary file names (strip `summary-` prefix)
+3. For each raw file name, check if a summary exists with matching base name
+4. Flag any raw file with no matching summary as unsummarized
+
+**Auto-fix**: Always auto-fixable — run `seed-ingest` on the flagged raw files to generate summaries.
+
+---
+
 ## Lint Report
 
 Save `outputs/lint-{{today}}.md`:
@@ -160,6 +181,7 @@ tags: [output, lint]
 | Tag hygiene | {{N}} | No (needs review) |
 | Catalog sync | {{N}} | Yes (run seed-index) |
 | Unhubbed concepts | {{N}} | Yes |
+| Unsummarized raw files | {{N}} | Yes (run seed-ingest) |
 
 ## Issues Detail
 
@@ -191,6 +213,9 @@ tags: [output, lint]
 
 ### 🔵 Unhubbed Concepts
 {{list with suggested topic groupings}}
+
+### 🟠 Unsummarized Raw Files (no wiki/sources/ entry)
+- `raw/{{filename}}.md` — run seed-ingest to generate summary
 
 ## Recommended Actions
 1. {{Most urgent fix}}

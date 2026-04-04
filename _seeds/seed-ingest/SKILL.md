@@ -16,12 +16,21 @@ You are ingesting a source document into the Seed Vault wiki. Your job is to:
 ## Step 1: Identify the Source
 
 Determine what was provided:
-- **File path to PDF**: Use `pdftotext` via Bash: `pdftotext "path/to/file.pdf" -` (outputs to stdout). If pdftotext is unavailable, use the MCP PDF Viewer tool if available.
+- **File path to PDF**: Use the Read tool directly on the `.pdf` file first — Claude can read PDFs natively. If Read returns an error or garbled output, fall back to `pdftotext "path/to/file.pdf" -` via Bash. If pdftotext is also unavailable, ask the user to paste the text.
 - **File path to .html or .md**: Read directly with the Read tool
-- **URL**: Use WebFetch to retrieve the page content
+- **YouTube URL** (`youtube.com/watch` or `youtu.be/`): See YouTube handling below
+- **URL**: Use WebFetch to retrieve the page content. If WebFetch fails or returns empty content, automatically retry via the Wayback Machine: `WebFetch https://web.archive.org/web/2*/{{url}}` before giving up.
 - **Plain text / already in raw/**: Read directly
 
 If multiple sources are provided, process them one at a time and report progress.
+
+### YouTube URLs
+
+If the URL is a YouTube video:
+1. Extract the video ID from the URL (e.g., `youtube.com/watch?v=VIDEOID` or `youtu.be/VIDEOID`)
+2. Try fetching a transcript: `WebFetch https://youtranscript.vercel.app/api?videoId={{VIDEOID}}`
+3. If the transcript service is unavailable, ask the user to paste the auto-generated transcript (YouTube → "..." → "Show transcript")
+4. Use the video title as the source title; set `original_format: youtube-transcript` in the raw file
 
 ---
 
@@ -63,7 +72,7 @@ Write `raw/{{name}}.md` with this structure:
 ```markdown
 ---
 title: "{{Full Title}}"
-original_format: pdf | html | url | text
+original_format: pdf | html | url | text | youtube-transcript
 source_url: "{{url if applicable}}"
 author: "{{author if found}}"
 publication: "{{journal/site if found}}"
@@ -152,7 +161,8 @@ After ingestion, report:
 
 ## Error Handling
 
-- **pdftotext not found**: Ask the user to install poppler-utils (`sudo apt install poppler-utils`) or provide the text manually
-- **URL fetch fails**: Ask user to paste the article text directly
+- **PDF Read fails**: Fall back to `pdftotext "path" -` via Bash. If that also fails, ask the user to install poppler-utils (`sudo apt install poppler-utils`) or provide the text manually.
+- **URL fetch fails**: Automatically retry via Wayback Machine (`WebFetch https://web.archive.org/web/2*/{{url}}`). If that also fails, ask the user to paste the article text directly.
+- **YouTube transcript fetch fails**: Ask user to paste the transcript from YouTube's "Show transcript" panel (video page → "..." menu → "Show transcript").
 - **File not found**: Ask user to confirm the path
 - **Ambiguous title**: Use the filename as a fallback title, ask user to confirm

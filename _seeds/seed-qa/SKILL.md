@@ -17,6 +17,7 @@ Scan the catalog for entries relevant to the question. Note:
 - Which articles are directly relevant (will need to read in full)
 - Which are peripherally relevant (may need to skim)
 - What topics and tags cluster around the question
+- The `Status:` of each relevant article — track whether sources are `verified`, `reviewed`, or `draft`
 
 If the catalog is empty or sparse, say so and suggest the user ingest sources first.
 
@@ -42,10 +43,17 @@ Cap at reading ~15 articles. If more seem relevant, note that the answer may be 
 
 ## Step 3: Synthesize the Answer
 
+Before writing the answer, assess the confidence level based on the `status:` of articles consulted:
+- **HIGH**: All directly relevant articles are `verified`
+- **MEDIUM**: Mix of `verified` and `reviewed` sources, or primarily `reviewed`
+- **LOW**: Primarily `draft` articles, significant knowledge gaps, or fewer than 2 relevant sources
+
 Write a thorough answer using only what's in the wiki:
 
 ```markdown
 ## Answer: {{Question}}
+
+> **Confidence: HIGH | MEDIUM | LOW** — *(one-line reason: e.g., "all sources verified" / "2 of 4 sources are draft" / "no directly relevant articles found")*
 
 {{Main answer — direct response to the question}}
 

@@ -21,6 +21,7 @@ Determine the visualization type from the user's request:
 | Trends over time | Line chart (Chart.js) |
 | Proportions, parts of whole | Pie / donut (Chart.js) |
 | Two-variable relationships | Scatter plot (Chart.js) |
+| Simple static chart (no interactivity needed) | SVG (inline, no library) |
 | Concept relationships, network | Force-directed graph (D3.js) |
 | Hierarchy, taxonomy | Tree / sunburst (D3.js) |
 | Chronology, events | Timeline (vanilla HTML/CSS) |
@@ -28,6 +29,8 @@ Determine the visualization type from the user's request:
 | Geographic | Leaflet.js choropleth |
 
 If unclear, ask: "What data would you like to visualize? I can do: bar/line/pie charts, network graphs, timelines, flowcharts, or hierarchies."
+
+**Theme**: Ask the user (or infer from context) whether they prefer **dark** or **light** theme. Default to dark. The templates below include both theme variants — use the appropriate one.
 
 ---
 
@@ -49,7 +52,7 @@ If data is implicit (e.g., "visualize connections between concepts"), derive it 
 
 Create `viz/{{name}}.html` as a fully self-contained file.
 
-### Chart.js template (bar/line/pie/scatter):
+### Chart.js template (bar/line/pie/scatter) — dark theme:
 
 ```html
 <!DOCTYPE html>
@@ -113,6 +116,72 @@ new Chart(ctx, {
 </body>
 </html>
 ```
+
+### Chart.js template — light theme:
+
+```html
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>{{Chart Title}}</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
+<style>
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+         background: #ffffff; color: #1a1a2e; margin: 0; padding: 20px; }
+  .container { max-width: 900px; margin: 0 auto; }
+  h1 { font-size: 1.4rem; color: #2563eb; margin-bottom: 4px; }
+  .subtitle { font-size: 0.85rem; color: #6b7280; margin-bottom: 24px; }
+  canvas { background: #f9fafb; border-radius: 8px; padding: 16px; border: 1px solid #e5e7eb; }
+  .source { font-size: 0.75rem; color: #9ca3af; margin-top: 12px; }
+</style>
+</head>
+<body>
+<div class="container">
+  <h1>{{Chart Title}}</h1>
+  <p class="subtitle">{{Subtitle / description}}</p>
+  <canvas id="chart"></canvas>
+  <p class="source">Sources: {{source list}}</p>
+</div>
+<script>
+const ctx = document.getElementById('chart').getContext('2d');
+new Chart(ctx, {
+  type: '{{bar|line|pie|scatter}}',
+  data: {
+    labels: [{{labels}}],
+    datasets: [{
+      label: '{{dataset label}}',
+      data: [{{data}}],
+      backgroundColor: [
+        'rgba(37, 99, 235, 0.7)',
+        'rgba(16, 185, 129, 0.7)',
+        'rgba(239, 68, 68, 0.7)',
+        'rgba(245, 158, 11, 0.7)',
+        'rgba(139, 92, 246, 0.7)',
+        'rgba(20, 184, 166, 0.7)'
+      ],
+      borderColor: 'rgba(0,0,0,0.1)',
+      borderWidth: 1
+    }]
+  },
+  options: {
+    responsive: true,
+    plugins: {
+      legend: { labels: { color: '#374151' } }
+    },
+    scales: {
+      x: { ticks: { color: '#6b7280' }, grid: { color: 'rgba(0,0,0,0.05)' } },
+      y: { ticks: { color: '#6b7280' }, grid: { color: 'rgba(0,0,0,0.05)' } }
+    }
+  }
+});
+</script>
+</body>
+</html>
+```
+
+---
 
 ### D3.js Force-Directed Network template (for concept relationship graphs):
 

@@ -57,19 +57,32 @@ For each hard claim:
 
 ## Step 4: External Verification (for ❓ and ❌ claims)
 
-For unsourced or contradicted claims, use web search:
+**Prioritization order**: Always resolve ❌ contradictions first, then ❓ unsourced claims. Stop external lookups when only ⚠️ weak-support flags remain, or after 10 external lookups — whichever comes first.
 
+**Skip already-verified claims**: If the article's frontmatter has a `verified_claims:` list, skip those claims and only process new or changed ones.
+
+For **scientific/academic claims**, use Semantic Scholar (free, no API key needed):
+```
+WebFetch https://api.semanticscholar.org/graph/v1/paper/search?query={{url-encoded claim keywords}}&fields=title,abstract,year,citationCount&limit=3
+```
+Parse the JSON: look for papers with high citation counts that support or contradict the claim. Note evidence strength (single study vs. meta-analysis).
+
+For **factual/historical claims**, try Wikipedia first:
+```
+WebFetch https://en.wikipedia.org/w/api.php?action=query&prop=extracts&exintro&titles={{url-encoded topic}}&format=json
+```
+
+For **general web verification**, use WebSearch:
 ```
 WebSearch: "{{claim keywords}}" {{context}}
 ```
 
-For scientific/medical claims, use MCP PubMed or Consensus:
-- Search for primary literature supporting or refuting the claim
-- Note the evidence strength (single study vs. meta-analysis vs. consensus)
+If a source URL is dead (404/timeout), try the Wayback Machine before marking it unavailable:
+```
+WebFetch https://web.archive.org/web/2*/{{dead-url}}
+```
 
-For factual/historical claims, use WebFetch on authoritative sources.
-
-Limit to 5–8 web searches per verification run to stay focused.
+If MCP PubMed, Consensus, or Brave Search is installed, prefer those over WebSearch for scientific claims — they return structured results.
 
 ---
 
@@ -152,3 +165,24 @@ tags: [output, verification]
 - **Prioritize contradictions**: ❌ flags are most urgent — they indicate a wiki error
 - **Don't over-verify**: Soft claims like "widely used" don't need a citation if the domain context supports them
 - **Scientific claims**: Flag anything from single studies as ⚠️ unless multiple sources agree
+- **Quick mode**: If the user says "quick verify" or "internal only", skip Step 4 entirely — only do internal source cross-reference (Steps 2–3). Useful for checking consistency without burning web lookups.
+- **Track verified claims**: After a successful verification run, add `verified_claims: [{{list of verified claim fingerprints}}]` to the article frontmatter so repeat runs skip them.
+
+---
+
+## MCP Integrations for Verification
+
+The following free APIs work without any MCP server (use WebFetch):
+
+| Source | URL pattern | Best for |
+|--------|-------------|----------|
+| **Semantic Scholar** | `https://api.semanticscholar.org/graph/v1/paper/search?query={{query}}&fields=title,abstract,year,citationCount&limit=3` | Academic/scientific claims |
+| **CrossRef DOI** | `https://api.crossref.org/works/{{doi}}` | Validating specific paper metadata |
+| **Wikipedia API** | `https://en.wikipedia.org/w/api.php?action=query&prop=extracts&exintro&titles={{topic}}&format=json` | Factual/historical claims |
+| **Wayback Machine** | `https://web.archive.org/web/2*/{{url}}` | Recovering dead source URLs |
+| **PubMed E-utils** | `https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi?db=pubmed&term={{query}}&retmode=json` | Medical/biology claims |
+
+If MCP servers are installed:
+- **Brave Search / Tavily MCP**: More reliable than WebSearch for current events
+- **PubMed MCP**: Structured access to MEDLINE database
+- **Consensus MCP**: AI-synthesized scientific consensus on a claim
