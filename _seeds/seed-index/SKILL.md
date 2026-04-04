@@ -38,7 +38,22 @@ Group files by `type`:
 
 ---
 
-## Step 2: For Each Article, Read the Overview
+## Step 1b: Delta Detection (Fast Mode)
+
+Before reading every article, check if `wiki/_catalog.md` exists and has entries. If it does:
+
+1. Read the existing catalog's `updated: {{date}}` from its frontmatter
+2. For each article file from Step 1, compare its `updated:` frontmatter date against the catalog's rebuild date
+3. Articles where `updated:` is **older than** the catalog rebuild date are **unchanged** — skip re-reading them and carry over their existing catalog entries
+4. Articles where `updated:` is **newer** (or not yet in the catalog) need a full read
+
+Report: "Delta mode: {{N}} articles unchanged (skipped), {{M}} articles need refresh."
+
+If the user says "full rebuild" or "force reindex", skip delta detection and read all files.
+
+---
+
+## Step 2: For Each Changed Article, Read the Overview
 
 To write catalog summaries, read each article's `## Overview` or first substantive paragraph (skip frontmatter and headings to find the first real content). For source summaries, read `## Key Takeaways`.
 
@@ -112,6 +127,7 @@ updated: {{today}}
 ### [[Concept Name]]
 Type: concept
 Tags: tag1, tag2
+Status: draft | reviewed | verified
 Summary: {{2–3 sentences}}. Covers {{key aspect}}. Connected to [[Related Concept]] and [[Another]].
 
 ### [[Another Concept]]
@@ -122,6 +138,7 @@ Summary: {{2–3 sentences}}. Covers {{key aspect}}. Connected to [[Related Conc
 ### [[Summary: Source Title]]
 Type: source-summary
 Tags: tag1, tag2
+Status: draft | reviewed | verified
 Summary: {{2–3 sentences describing the source, its main claims, and what concepts it informs}}.
 
 ## Topics
@@ -129,6 +146,7 @@ Summary: {{2–3 sentences describing the source, its main claims, and what conc
 ### [[Topic: Topic Name]]
 Type: topic
 Tags: topic-tag
+Status: draft | reviewed | verified
 Summary: {{2–3 sentences describing the topic cluster and which concepts it groups}}.
 
 ## Visualizations
@@ -136,6 +154,7 @@ Summary: {{2–3 sentences describing the topic cluster and which concepts it gr
 ### [[Viz: Visualization Name]]
 Type: visualization
 Tags: visualization, topic
+Status: draft | reviewed | verified
 Summary: {{2–3 sentences describing what is visualized and what insight it provides}}.
 ```
 

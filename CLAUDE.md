@@ -18,7 +18,7 @@ This is a **Seed Vault** wiki. Claude is the primary author of all wiki content.
 | `wiki/sources/` | One summary per file in `raw/` | Claude |
 | `wiki/topics/` | Topic hub pages that cluster related concepts | Claude |
 | `viz/` | Self-contained HTML visualizations | Claude |
-| `outputs/` | Q&A reports, lint reports, one-off outputs | Claude |
+| `outputs/` | Q&A reports, lint reports, one-off outputs (gitignored — ephemeral) | Claude |
 | `_templates/` | Obsidian article templates | Do not modify |
 | `_seeds/` | Skill definitions (installed via install.sh) | Do not modify |
 
@@ -76,6 +76,7 @@ status: draft | reviewed | verified
 ### [[Article Title]]
 Type: concept | source-summary | topic
 Tags: tag1, tag2
+Status: draft | reviewed | verified
 Summary: 2–3 sentences describing what this article covers and its key claims.
 ```
 
@@ -112,17 +113,19 @@ Summary: 2–3 sentences describing what this article covers and its key claims.
 
 ## Available Skills
 
-Seven skills power this vault. Invoke them by describing what you want:
+Nine skills power this vault. Invoke them by describing what you want:
 
 | Skill | When to use |
 |-------|------------|
 | `seed-ingest` | "Ingest this PDF/article/URL" — converts raw sources to structured markdown |
 | `seed-compile` | "Compile the wiki" / "Write an article about X" — builds concept articles from raw |
+| `seed-pipeline` | "Process everything" / "Run the pipeline" — full ingest→compile→index→lint in one pass |
 | `seed-index` | "Reindex" / "Rebuild catalog" — regenerates _index.md and _catalog.md |
 | `seed-qa` | "What does the wiki say about X?" — researches and answers from wiki content |
 | `seed-verify` | "Fact-check this article" — cross-references claims against sources and web |
 | `seed-lint` | "Check the wiki health" — finds broken links, orphans, inconsistencies |
 | `seed-visualize` | "Visualize X" / "Chart Y" — generates HTML visualizations with wiki wrappers |
+| `seed-digest` | "Briefing" / "What's in the wiki?" — generates a status summary of vault contents |
 
 ---
 
@@ -137,6 +140,22 @@ Seven skills power this vault. Invoke them by describing what you want:
 
 All article titles in `[[wikilinks]]` use Title Case.
 File names use kebab-case.
+
+---
+
+## MCP Integrations (Optional)
+
+These MCP servers enhance vault capabilities when installed in Claude Code. None are required — all core skills work without them.
+
+| MCP Server | Benefit | Install |
+|------------|---------|---------|
+| **Brave Search** or **Tavily** | Richer web search in `seed-verify` and `seed-qa` beyond the default WebSearch tool | `claude mcp add brave-search` |
+| **Zotero** | Sync your academic reference library — auto-ingest tagged references via `seed-ingest` | Community MCP |
+| **GitHub** | Ingest README/docs/wikis from public repos as sources | `claude mcp add github` |
+| **Obsidian** | Direct vault read/write without the Claude Code CLI (useful for remote sessions) | Community MCP |
+| **PubMed / Semantic Scholar** | Native academic paper lookup in `seed-verify` (free API also works without MCP — see skill) | Community MCP |
+
+Even without MCP servers, `seed-verify` uses free public APIs (Semantic Scholar, CrossRef, Wayback Machine) for external verification. MCP servers add speed and depth.
 
 ---
 

@@ -123,12 +123,19 @@ status: draft
 ### Supporting Concepts
 - [[Concept D]] — *(one-line description)*
 
+## Recommended Reading Order
+*(For someone new to this topic — list concepts from foundational to advanced)*
+1. [[Foundational Concept A]] — start here
+2. [[Concept B]] — builds on A
+3. [[Advanced Concept C]] — requires A and B
+
 ## Key Sources
 *(Primary sources in this topic area)*
 - [[Summary: Source Title]]
 
 ## Open Questions
 *(What's unknown, debated, or worth exploring further?)*
+- {{At least one open question — never leave this empty}}
 
 ## See Also
 - [[Topic: Related Topic]]
