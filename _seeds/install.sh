@@ -32,14 +32,14 @@ for skill_dir in "$SCRIPT_DIR"/seed-*/; do
         rm "$target"
         ln -s "$skill_md" "$target"
         echo "  ↻ Updated:   $skill_name"
-        ((updated++))
+        updated=$((updated + 1))
     elif [ -f "$target" ]; then
         # Exists as a real file — warn, don't overwrite
         echo "  ⚠ Skipped:   $skill_name (real file exists at $target — remove manually to replace)"
     else
         ln -s "$skill_md" "$target"
         echo "  ✓ Installed: $skill_name"
-        ((installed++))
+        installed=$((installed + 1))
     fi
 done
 
