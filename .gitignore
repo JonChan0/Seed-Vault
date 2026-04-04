@@ -37,3 +37,8 @@ viz/
 __pycache__/
 *.pyc
 node_modules/
+
+.trash
+
+#Syncthing folders
+.st*

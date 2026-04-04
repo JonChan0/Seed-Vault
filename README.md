@@ -160,5 +160,16 @@ Each cycle enriches the wiki. Q&A answers can become new concept articles. Visua
 
 ---
 
+# To Do
+
+* Update README.md to adjust the Skills table to have a first column of Skill Name
+* Update README.md so that it automatically substitutes the 'Seed Vault' for whatever the name of the Vault is.
+* Update README.md to add Obsidian Web Clipper (with link) as part of the ingest step in the Workflow and change the Workflow section into an attached infographic .png image instead of the workflow. Use Obsidian native colours for the theme of the infographic.
+
+
+* Implement Obsidian Bases to have a foundational Bases for the _index and _catalog files instead of .md files. (I'm assuming this will be more context-efficient though correct me if I'm wrong)
+* For the Graph view, have default settings that exclude the _seeds, _templates and folders in the root of the vault from the Graph View. Also exclude all nodes related to #Clippings as that is the default tag with the Obsidian Web Clipper. Also remove _index and _catalog from the Graph View as that is obviously linked to all sources and concepts so doesn't enable topic-specific separation.
+
 *Last updated: 2026-04-03*
+
 Inspired by: https://x.com/karpathy/status/2039805659525644595 
