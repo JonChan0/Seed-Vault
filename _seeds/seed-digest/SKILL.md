@@ -9,26 +9,42 @@ You are generating an orientation briefing of the Seed Vault wiki. The goal is t
 
 ---
 
-## Step 1: Load the Index and Catalog
+## Step 1: Frontmatter Scan (statistics, dates, tags)
 
-1. Read `wiki/_index.md` in full — get article counts and lists by type
-2. Read `wiki/_catalog.md` in full — get summaries and status of every article
+All counts, statuses, dates, and tags live in frontmatter — read only the first ~15 lines of each article file rather than full content or the catalog.
 
-Build a mental inventory:
-- Total articles by type (concepts, sources, topics, visualizations)
-- Status distribution: how many are `verified`, `reviewed`, `draft`
-- Tags in use (from catalog entries) — what domains/topics are covered
+```
+Glob wiki/**/*.md
+```
+
+Exclude `_index.md`, `_catalog.md`, `_index.base`, `_catalog.base`.
+
+For each file, read just the frontmatter block (lines 1–15 are sufficient for all YAML fields). Extract:
+- `type` → count by type (concept, source-summary, topic, visualization)
+- `status` → tally verified / reviewed / draft per type
+- `tags` → collect all tags for domain mapping
+- `updated` → collect all dates for recency and staleness
+- `created` → collect for "recently added" detection
+
+This replaces reading `_catalog.md` for everything statistical. The catalog is only needed for topic summaries (Step 4).
+
+Build from this scan:
+- Total articles by type
+- Status distribution per type
+- Tag frequency table (domains/topics covered)
+- Sorted date lists for Steps 2 and 3
 
 ---
 
-## Step 2: Find Recently Updated Content
+## Step 2: Find Recently Updated and Oldest Content
 
-From the catalog, read the `updated:` dates of all articles. Identify:
-- **Last 7 days**: Articles updated within the past week
-- **Last 30 days**: Articles updated within the past month
-- **Oldest articles**: The 3 articles with the oldest `updated:` dates (candidates for review)
+Using the `updated:` and `created:` dates collected in Step 1:
 
-If `updated:` dates are unavailable in the catalog, use `Glob wiki/**/*.md` and note that date tracking requires articles to maintain their frontmatter.
+- **Recently updated (last 7 days)**: Articles where `updated:` ≥ today minus 7 days
+- **Recently added (last 30 days)**: Articles where `created:` ≥ today minus 30 days
+- **Oldest articles**: The 3 articles with the earliest `updated:` dates (staleness candidates)
+
+No additional file reads needed — all data already collected in Step 1.
 
 ---
 
@@ -36,22 +52,23 @@ If `updated:` dates are unavailable in the catalog, use `Glob wiki/**/*.md` and 
 
 Hub nodes are the most-connected articles — they're the conceptual backbone of the wiki.
 
-Method: Use the frequency map approach — scan `wiki/_catalog.md` for `[[wikilinks]]` referenced in summaries, or do a quick Grep:
+Run one Grep sweep across all wiki files to collect every `[[wikilink]]`:
 ```
 Grep pattern="\[\[([^\]]+)\]\]" path="wiki/" glob="*.md" output_mode="content"
 ```
 
-Identify the top 5 most-referenced articles (titles appearing most often in other articles' link sections).
+Build a frequency map: count occurrences of every `[[Title]]` across all files. The top 5 most-referenced titles are the hub nodes.
 
 ---
 
 ## Step 4: Identify Knowledge Gaps
 
-From the catalog and index:
-1. **Unresolved links**: Grep for `[[wikilinks]]` that appear in articles but have no corresponding file (these show as red nodes in Obsidian graph)
-2. **Draft-heavy areas**: Tag clusters where most articles are `status: draft`
-3. **Source-only zones**: Topics with source summaries but no concept articles compiled yet
+1. **Unresolved links**: From the frequency map in Step 3, find titles that appear in `[[wikilinks]]` but have no corresponding file in the glob results from Step 1 — these are missing articles (red nodes in Obsidian graph)
+2. **Draft-heavy areas**: From the Step 1 tag+status data, find tag clusters where most articles are `status: draft`
+3. **Source-only zones**: Tag groups that have source-summary entries but no concept articles — suggest `seed-compile`
 4. **Missing topic hubs**: Groups of 3+ concepts sharing a tag but no topic hub page
+
+For the **Topics Covered** section of the briefing, read `wiki/_catalog.md` now — specifically to get the 2–3 sentence summaries that give meaningful domain context. This is the only part of the digest that needs catalog content.
 
 ---
 
@@ -127,6 +144,6 @@ Otherwise, deliver the briefing inline as a response — no file needed.
 
 ## Notes
 
-- **Fast**: This skill reads only `_index.md` and `_catalog.md` plus one optional Grep — it doesn't read individual articles
-- **Honest about gaps**: If the catalog is sparse or outdated, say so and suggest running `seed-index` first
-- **Tone**: Informative and actionable — each gap identified should come with a suggested skill to address it
+- **Fast**: Statistics come from a lightweight frontmatter scan (first ~15 lines per file) + one Grep sweep. The full catalog is only read for topic summary context — and skipped entirely if the user just wants counts/dates.
+- **No dependency on catalog currency**: The frontmatter scan reads source-of-truth data directly from article files, so the digest is accurate even if `_catalog.md` is stale. If the catalog is missing or outdated, note it and suggest running `seed-index`.
+- **Tone**: Informative and actionable — each gap identified should come with a suggested skill to address it.
