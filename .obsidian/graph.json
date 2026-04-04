@@ -1,6 +1,6 @@
 {
   "collapse-filter": false,
-  "search": "",
+  "search": "-path:_seeds -path:_templates -file:_index -file:_catalog -tag:Clippings",
   "showTags": true,
   "showAttachments": false,
   "hideUnresolved": false,

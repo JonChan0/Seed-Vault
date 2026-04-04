@@ -88,15 +88,15 @@ Claude is the primary author of all files in `wiki/`, `viz/`, and `outputs/`. Yo
 ## Skills
 
 <!-- SKILLS:START -->
-| Say this... | Claude will... |
-|-------------|----------------|
-| "Ingest raw/paper.pdf" / "import this URL" | Convert PDF/HTML/URL → structured markdown in raw/, create source summary in wiki/sources/ |
-| "Compile the wiki" / "write an article about X" | Build interconnected concept articles and topic hub pages from raw sources |
-| "Reindex" / "rebuild catalog" | Rebuild _index.md and _catalog.md from all current wiki articles |
-| "What do we know about X?" / "research X" | Research and synthesize an answer from wiki content, cite with wikilinks |
-| "Fact-check the X article" / "verify this" | Cross-reference claims against sources and web search, flag contradictions |
-| "Check the wiki health" / "lint" | Find broken links, orphan pages, missing backlinks, inconsistencies |
-| "Visualize X as a chart" / "map out X" | Generate self-contained HTML chart/diagram + Obsidian wrapper page |
+| Skill Name | Say this... | Claude will... |
+|------------|-------------|----------------|
+| `seed-ingest` | "Ingest raw/paper.pdf" / "import this URL" | Convert PDF/HTML/URL → structured markdown in raw/, create source summary in wiki/sources/ |
+| `seed-compile` | "Compile the wiki" / "write an article about X" | Build interconnected concept articles and topic hub pages from raw sources |
+| `seed-index` | "Reindex" / "rebuild catalog" | Rebuild _index.md and _catalog.md from all current wiki articles |
+| `seed-qa` | "What do we know about X?" / "research X" | Research and synthesize an answer from wiki content, cite with wikilinks |
+| `seed-verify` | "Fact-check the X article" / "verify this" | Cross-reference claims against sources and web search, flag contradictions |
+| `seed-lint` | "Check the wiki health" / "lint" | Find broken links, orphan pages, missing backlinks, inconsistencies |
+| `seed-visualize` | "Visualize X as a chart" / "map out X" | Generate self-contained HTML chart/diagram + Obsidian wrapper page |
 <!-- SKILLS:END -->
 
 ---
@@ -129,7 +129,7 @@ your-wiki/
 │   ├── install.sh       Run once after cloning
 │   ├── seed-ingest/     Raw source → markdown converter
 │   ├── seed-compile/    Wiki article builder
-│   ├── seed-index/      Index & catalog rebuilder
+│   ├── seed-index/      Index & catalog rebuilder (maintains _index.md + _catalog.md)
 │   ├── seed-qa/         Question answering from the wiki
 │   ├── seed-verify/     Fact checker
 │   ├── seed-lint/       Health checker
@@ -146,30 +146,14 @@ your-wiki/
 
 ## Workflow
 
-```
-1. Ingest    →  raw/ + wiki/sources/
-2. Compile   →  wiki/concepts/ + wiki/topics/
-3. Q&A       →  answers from wiki content
-4. Verify    →  fact-check against sources & web
-5. Lint      →  fix broken links, add backlinks
-6. Visualize →  viz/*.html + wiki wrapper pages
-7. (repeat)  →  explorations file back into wiki, enriching it over time
-```
+![Seed Vault Workflow](workflow.png)
+
+> **Tip — Ingest from the web:** Use [Obsidian Web Clipper](https://obsidian.md/clipper) to save web pages directly into `raw/` as clean markdown. It pairs naturally with the `seed-ingest` skill and tags clipped pages with `#Clippings` automatically.
 
 Each cycle enriches the wiki. Q&A answers can become new concept articles. Visualizations become graph nodes. Verification adds sourcing depth.
 
 ---
 
-# To Do
-
-* Update README.md to adjust the Skills table to have a first column of Skill Name
-* Update README.md so that it automatically substitutes the 'Seed Vault' for whatever the name of the Vault is.
-* Update README.md to add Obsidian Web Clipper (with link) as part of the ingest step in the Workflow and change the Workflow section into an attached infographic .png image instead of the workflow. Use Obsidian native colours for the theme of the infographic.
-
-
-* Implement Obsidian Bases to have a foundational Bases for the _index and _catalog files instead of .md files. (I'm assuming this will be more context-efficient though correct me if I'm wrong)
-* For the Graph view, have default settings that exclude the _seeds, _templates and folders in the root of the vault from the Graph View. Also exclude all nodes related to #Clippings as that is the default tag with the Obsidian Web Clipper. Also remove _index and _catalog from the Graph View as that is obviously linked to all sources and concepts so doesn't enable topic-specific separation.
-
-*Last updated: 2026-04-03*
+*Last updated: 2026-04-04*
 
 Inspired by: https://x.com/karpathy/status/2039805659525644595 

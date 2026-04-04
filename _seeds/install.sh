@@ -45,5 +45,22 @@ done
 
 echo ""
 echo "Done. Installed: $installed  Updated: $updated"
+
+# ── Vault name substitution ──────────────────────────────────────
+# Replace "Seed Vault" in README.md with the actual vault name,
+# derived from the repository/folder name.
+VAULT_ROOT="$(dirname "$SCRIPT_DIR")"
+REPO_NAME="$(basename "$VAULT_ROOT")"
+
+# Convert hyphens/underscores to spaces, then title-case each word
+VAULT_DISPLAY="$(echo "$REPO_NAME" | sed 's/[-_]/ /g' | awk '{for(i=1;i<=NF;i++) $i=toupper(substr($i,1,1)) tolower(substr($i,2))}1')"
+
+README="$VAULT_ROOT/README.md"
+if [ -f "$README" ] && [ "$VAULT_DISPLAY" != "Seed Vault" ]; then
+    sed -i "s/Seed Vault/$VAULT_DISPLAY/g" "$README"
+    echo "Updated README.md: 'Seed Vault' → '$VAULT_DISPLAY'"
+fi
+# ─────────────────────────────────────────────────────────────────
+
 echo ""
 echo "Next step: run /reload-plugins in Claude Code to activate the skills."

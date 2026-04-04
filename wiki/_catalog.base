@@ -1,0 +1,44 @@
+filters:
+  and:
+    - 'file.path.startsWith("wiki/")'
+    - 'type != ""'
+
+properties:
+  title:
+    displayName: Title
+  type:
+    displayName: Type
+  status:
+    displayName: Status
+  tags:
+    displayName: Tags
+  sources:
+    displayName: Sources
+  updated:
+    displayName: Updated
+
+views:
+  - type: table
+    name: Catalog
+    order:
+      - file.name
+      - type
+      - title
+      - tags
+      - sources
+      - status
+      - updated
+    groupBy:
+      property: type
+      direction: ASC
+
+  - type: cards
+    name: By Type
+    order:
+      - file.name
+      - title
+      - tags
+      - status
+    groupBy:
+      property: type
+      direction: ASC
