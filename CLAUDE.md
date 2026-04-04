@@ -11,7 +11,9 @@ This is a **Seed Vault** wiki. Claude is the primary author of all wiki content.
 | `raw/` | Source documents — articles, PDFs converted to .md, web clips | User (Claude never modifies) |
 | `wiki/` | All compiled wiki articles | Claude only |
 | `wiki/_index.md` | Master index of every article in the wiki | Claude (always keep current) |
+| `wiki/_index.base` | Obsidian Bases view of the index (auto-populated from frontmatter) | Do not modify |
 | `wiki/_catalog.md` | 2–3 sentence summary of every article (LLM search index) | Claude (always keep current) |
+| `wiki/_catalog.base` | Obsidian Bases view of the catalog (auto-populated from frontmatter) | Do not modify |
 | `wiki/concepts/` | Concept articles synthesized from multiple sources | Claude |
 | `wiki/sources/` | One summary per file in `raw/` | Claude |
 | `wiki/topics/` | Topic hub pages that cluster related concepts | Claude |
