@@ -1,0 +1,9 @@
+{
+  "useMarkdownLinks": false,
+  "newLinkFormat": "shortest",
+  "showFrontmatter": true,
+  "strictLineBreaks": false,
+  "defaultViewMode": "preview",
+  "promptDelete": false,
+  "trashOption": "local"
+}
