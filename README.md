@@ -90,13 +90,15 @@ Claude is the primary author of all files in `wiki/`, `viz/`, and `outputs/`. Yo
 <!-- SKILLS:START -->
 | Skill Name | Say this... | Claude will... |
 |------------|-------------|----------------|
-| `seed-ingest` | "Ingest raw/paper.pdf" / "import this URL" | Convert PDF/HTML/URL → structured markdown in raw/, create source summary in wiki/sources/ |
-| `seed-compile` | "Compile the wiki" / "write an article about X" | Build interconnected concept articles and topic hub pages from raw sources |
-| `seed-index` | "Reindex" / "rebuild catalog" | Rebuild _index.md and _catalog.md from all current wiki articles |
-| `seed-qa` | "What do we know about X?" / "research X" | Research and synthesize an answer from wiki content, cite with wikilinks |
-| `seed-verify` | "Fact-check the X article" / "verify this" | Cross-reference claims against sources and web search, flag contradictions |
-| `seed-lint` | "Check the wiki health" / "lint" | Find broken links, orphan pages, missing backlinks, inconsistencies |
-| `seed-visualize` | "Visualize X as a chart" / "map out X" | Generate self-contained HTML chart/diagram + Obsidian wrapper page |
+| `seed-ingest` | "Ingest raw/paper.pdf" / "import this URL" | Convert PDF/HTML/URL → structured markdown in raw/, create source summary in wiki/sources/; supports YouTube transcripts and Wayback Machine fallback for dead URLs |
+| `seed-compile` | "Compile the wiki" / "write an article about X" | Build interconnected concept articles and topic hub pages from raw sources, with Recommended Reading Order on hub pages |
+| `seed-pipeline` | "Process everything" / "run the pipeline" | Orchestrate a full ingest → compile → index → lint pass in one command; idempotent (skips already-processed sources) |
+| `seed-index` | "Reindex" / "rebuild catalog" | Rebuild _index.md and _catalog.md; delta mode skips articles whose `updated:` date hasn't changed |
+| `seed-qa` | "What do we know about X?" / "research X" | Research and synthesize an answer from wiki content, cite with wikilinks; includes a Confidence (HIGH/MEDIUM/LOW) rating |
+| `seed-verify` | "Fact-check the X article" / "verify this" | Cross-reference claims against sources and web (Semantic Scholar, Wikipedia, CrossRef, PubMed, Wayback Machine); supports quick mode (internal-only) |
+| `seed-lint` | "Check the wiki health" / "lint" | Find broken links, orphan pages, missing backlinks, inconsistencies, and unsummarized raw/ files |
+| `seed-visualize` | "Visualize X as a chart" / "map out X" | Generate self-contained HTML chart/diagram (dark or light theme, including SVG) + Obsidian wrapper page |
+| `seed-digest` | "Briefing" / "what's in the wiki?" | Generate a vault status summary: article counts, recent updates, hub nodes, knowledge gaps, and suggested next actions |
 <!-- SKILLS:END -->
 
 ---
@@ -138,6 +140,8 @@ your-wiki/
 ├── .obsidian/           Obsidian vault config (tracked)
 ├── raw/                 Source documents — gitignored, local only
 ├── wiki/                Compiled wiki — gitignored, local only
+│   ├── _index.base      Obsidian Bases view of the index (auto-populated)
+│   └── _catalog.base    Obsidian Bases view of the catalog (auto-populated)
 ├── viz/                 Visualizations — gitignored, local only
 └── outputs/             Reports & outputs — gitignored, local only
 ```
@@ -154,6 +158,6 @@ Each cycle enriches the wiki. Q&A answers can become new concept articles. Visua
 
 ---
 
-*Last updated: 2026-04-04*
+*Last updated: 2026-04-04 (skills: added seed-pipeline, seed-digest; improved seed-ingest, seed-index, seed-lint, seed-verify, seed-qa, seed-visualize; added Obsidian Bases views)*
 
 Inspired by: https://x.com/karpathy/status/2039805659525644595 
