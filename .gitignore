@@ -26,6 +26,7 @@ wiki/topics/
 !wiki/topics/.gitkeep
 !wiki/_index.md
 !wiki/_catalog.md
+!wiki/_migration-log.md
 
 # Outputs and visualizations — ephemeral, not tracked
 outputs/

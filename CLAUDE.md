@@ -14,6 +14,7 @@ This is a **Seed Vault** wiki. Claude is the primary author of all wiki content.
 | `wiki/_index.base` | Obsidian Bases view of the index (auto-populated from frontmatter) | Do not modify |
 | `wiki/_catalog.md` | 2–3 sentence summary of every article (LLM search index) | Claude (always keep current) |
 | `wiki/_catalog.base` | Obsidian Bases view of the catalog (auto-populated from frontmatter) | Do not modify |
+| `wiki/_migration-log.md` | Record of applied framework migrations | Do not modify (managed by seed-migrate) |
 | `wiki/concepts/` | Concept articles synthesized from multiple sources | Claude |
 | `wiki/sources/` | One summary per file in `raw/` | Claude |
 | `wiki/topics/` | Topic hub pages that cluster related concepts | Claude |
@@ -37,6 +38,7 @@ updated: YYYY-MM-DD
 sources: ["[[Source Name]]", "[[Another Source]]"]
 tags: [topic/subtopic, another-tag]
 status: draft | reviewed | verified
+framework_version: "1.0.0"
 ---
 ```
 
@@ -44,6 +46,7 @@ status: draft | reviewed | verified
 - `sources` must use `[[wikilinks]]` — these create graph edges to source summaries
 - `tags` should be hierarchical: `#biology/genetics`, `#method/sequencing`
 - Update `updated:` every time you modify an article
+- `framework_version` tracks which framework version wrote this article — read from `_seeds/VERSION` at write time
 
 ---
 
@@ -113,7 +116,7 @@ Summary: 2–3 sentences describing what this article covers and its key claims.
 
 ## Available Skills
 
-Nine skills power this vault. Invoke them by describing what you want:
+Ten skills power this vault. Invoke them by describing what you want:
 
 | Skill | When to use |
 |-------|------------|
@@ -126,6 +129,7 @@ Nine skills power this vault. Invoke them by describing what you want:
 | `seed-lint` | "Check the wiki health" — finds broken links, orphans, inconsistencies |
 | `seed-visualize` | "Visualize X" / "Chart Y" — generates HTML visualizations with wiki wrappers |
 | `seed-digest` | "Briefing" / "What's in the wiki?" — generates a status summary of vault contents |
+| `seed-migrate` | "Migrate my wiki" / "Apply framework updates" — updates existing articles after a framework version bump |
 
 ---
 

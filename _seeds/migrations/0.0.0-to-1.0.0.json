@@ -1,0 +1,18 @@
+{
+  "from": "0.0.0",
+  "to": "1.0.0",
+  "date": "2026-04-04",
+  "description": "Bootstrap: add framework_version field to all wiki articles",
+  "requires_reindex": false,
+  "requires_llm": false,
+  "operations": [
+    {
+      "op": "add_field",
+      "field": "framework_version",
+      "value": "1.0.0",
+      "affects": "all",
+      "skip_if_present": true,
+      "note": "Inserts framework_version as the last field in frontmatter, before closing ---"
+    }
+  ]
+}

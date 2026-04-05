@@ -13,6 +13,12 @@ You are ingesting a source document into the Seed Vault wiki. Your job is to:
 
 ---
 
+## Step 0: Read Framework Version
+
+Read `_seeds/VERSION` once at the start of this session. Note the version string — you will use it for the `framework_version:` field in every source summary you write.
+
+---
+
 ## Step 1: Identify the Source
 
 Determine what was provided:
@@ -102,6 +108,7 @@ source_url: "{{url}}"
 author: "{{author}}"
 tags: [{{inferred tags}}]
 status: draft
+framework_version: "{{read from _seeds/VERSION}}"
 ---
 
 # {{Full Title}}
