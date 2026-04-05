@@ -17,11 +17,12 @@ There are two modes:
 
 Before writing anything:
 
-1. Read `wiki/_catalog.md` — understand what articles already exist
-2. Read `wiki/_index.md` — see the current wiki structure
-3. `Glob wiki/sources/*.md` — list all source summaries
-4. `Glob raw/*.md` — list all raw sources
-5. Identify which source summaries are missing concept articles (check "Concepts Extracted" sections in summaries against _catalog.md)
+1. Read `_seeds/VERSION` — note the version string for the `framework_version:` field in all articles you write this session
+2. Read `wiki/_catalog.md` — understand what articles already exist
+3. Read `wiki/_index.md` — see the current wiki structure
+4. `Glob wiki/sources/*.md` — list all source summaries
+5. `Glob raw/*.md` — list all raw sources
+6. Identify which source summaries are missing concept articles (check "Concepts Extracted" sections in summaries against _catalog.md)
 
 Report what you found: "Found N source summaries. X concept articles exist. Y new concepts need articles: [list]"
 
@@ -45,6 +46,7 @@ sources: ["[[Summary: Source Title]]", "[[Summary: Another Source]]"]
 tags: [{{topic/subtopic}}, {{another-tag}}]
 status: draft
 aliases: ["{{alternate name}}", "{{abbreviation}}"]
+framework_version: "{{read from _seeds/VERSION}}"
 ---
 
 # {{Concept Name}}
@@ -106,6 +108,7 @@ updated: {{today}}
 sources: []
 tags: [{{topic}}]
 status: draft
+framework_version: "{{read from _seeds/VERSION}}"
 ---
 
 # Topic: {{Topic Name}}

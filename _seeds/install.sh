@@ -63,4 +63,23 @@ fi
 # ─────────────────────────────────────────────────────────────────
 
 echo ""
+
+# ── Version check ────────────────────────────────────────────────────────────
+VERSION_FILE="$SCRIPT_DIR/VERSION"
+INDEX_FILE="$VAULT_ROOT/wiki/_index.md"
+if [ -f "$VERSION_FILE" ] && [ -f "$INDEX_FILE" ]; then
+    fw_ver=$(cat "$VERSION_FILE" | tr -d '[:space:]')
+    vault_ver=$(grep 'framework_version:' "$INDEX_FILE" 2>/dev/null | sed 's/.*: *["\x27]*\([^"'\'']*\)["\x27]*.*/\1/' | tr -d '[:space:]')
+    if [ -z "$vault_ver" ]; then
+        echo "⚠ This vault predates framework versioning (framework is now v$fw_ver)."
+        echo "  Run seed-migrate in Claude Code to update your wiki articles."
+    elif [ "$vault_ver" != "$fw_ver" ]; then
+        echo "⚠ Framework updated to v$fw_ver (vault is at v$vault_ver)."
+        echo "  Run seed-migrate in Claude Code to update your wiki articles."
+    else
+        echo "✓ Vault is current (framework v$fw_ver)."
+    fi
+fi
+# ─────────────────────────────────────────────────────────────────────────────
+
 echo "Next step: run /reload-plugins in Claude Code to activate the skills."
