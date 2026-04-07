@@ -3,11 +3,22 @@
 Seed Vault — Incremental Wiki Migration Runner
 Applies structural migrations to wiki articles when the framework version changes.
 
+Normal update flow:
+  1. git fetch upstream && git merge upstream/main
+       → _vault/VERSION is now the new framework version
+       → wiki/_index.md still records the old vault version
+  2. uv sync && bash _vault/install.sh
+  3. python3 _vault/migrate.py   ← you are here
+
+Version sources:
+  - Framework version (target): _vault/VERSION      (updated by git merge, tracked in git)
+  - Vault version (current):    wiki/.vault_version (gitignored, local-only — no merge conflicts)
+
 Usage:
-  python3 _vault/migrate.py                     # Apply pending migrations
-  python3 _vault/migrate.py --dry-run           # Show what would change, no writes
+  python3 _vault/migrate.py                        # Apply pending migrations
+  python3 _vault/migrate.py --dry-run              # Show what would change, no writes
   python3 _vault/migrate.py --from-version 0.0.0  # Override detected vault version
-  python3 _vault/migrate.py --path wiki/topics/ # Scope to a subdirectory
+  python3 _vault/migrate.py --path wiki/topics/   # Scope to a subdirectory
 """
 
 import json
@@ -25,7 +36,7 @@ SCRIPT_DIR = Path(__file__).parent
 VAULT_ROOT = SCRIPT_DIR.parent
 VERSION_FILE = SCRIPT_DIR / "VERSION"
 MIGRATIONS_DIR = SCRIPT_DIR / "migrations"
-INDEX_FILE = VAULT_ROOT / "wiki" / "_index.md"
+VAULT_VERSION_FILE = VAULT_ROOT / "wiki" / ".vault_version"  # gitignored, local-only
 MIGRATION_LOG = VAULT_ROOT / "wiki" / "_migration-log.md"
 
 
@@ -226,31 +237,25 @@ def find_wiki_files(scope_path: str = None) -> list:
 # ── Vault version detection ───────────────────────────────────────────────────
 
 def read_vault_version() -> str:
-    if not INDEX_FILE.exists():
+    """
+    Read the vault's current framework version from wiki/.vault_version.
+    This file is gitignored and local-only, so it never conflicts on git merge.
+    Falls back to 0.0.0 if the file doesn't exist (new or pre-versioned vault).
+    """
+    if not VAULT_VERSION_FILE.exists():
         return "0.0.0"
-    content = INDEX_FILE.read_text(encoding="utf-8")
-    fm_lines, _ = split_frontmatter(content)
-    if fm_lines is None:
-        return "0.0.0"
-    v = get_field(fm_lines, "framework_version")
+    v = VAULT_VERSION_FILE.read_text(encoding="utf-8").strip().strip('"\'')
     return v if v else "0.0.0"
 
 
 def write_vault_version(version: str, dry_run: bool):
-    if not INDEX_FILE.exists():
-        print(f"  [warn] wiki/_index.md not found — cannot update vault version")
+    """Write the vault's framework version to wiki/.vault_version."""
+    if dry_run:
+        print(f"  [dry-run] wiki/.vault_version → {version}")
         return
-    content = INDEX_FILE.read_text(encoding="utf-8")
-    fm_lines, body = split_frontmatter(content)
-    if fm_lines is None:
-        print(f"  [warn] wiki/_index.md has no frontmatter — cannot update vault version")
-        return
-
-    fm_lines, changed = op_set_field(fm_lines, {"field": "framework_version", "value": version}, version)
-    if changed:
-        if not dry_run:
-            INDEX_FILE.write_text(rebuild_content(fm_lines, body), encoding="utf-8")
-        print(f"  {'[dry-run] ' if dry_run else ''}wiki/_index.md → framework_version: \"{version}\"")
+    VAULT_VERSION_FILE.parent.mkdir(parents=True, exist_ok=True)
+    VAULT_VERSION_FILE.write_text(version + "\n", encoding="utf-8")
+    print(f"  wiki/.vault_version → {version}")
 
 
 # ── Migration log ─────────────────────────────────────────────────────────────
@@ -365,8 +370,8 @@ def main():
     framework_version = VERSION_FILE.read_text(encoding="utf-8").strip()
     vault_version = from_version_override or read_vault_version()
 
-    print(f"Framework version : {framework_version}")
-    print(f"Vault version     : {vault_version}")
+    print(f"Framework version : {framework_version}  (from _vault/VERSION — updated by git merge)")
+    print(f"Vault version     : {vault_version}  (from wiki/.vault_version — reflects existing articles)")
 
     # Compare
     if parse_semver(vault_version) == parse_semver(framework_version):
@@ -450,7 +455,7 @@ def main():
     # LLM migration instructions
     if llm_migrations:
         print(f"\n⚠ {len(llm_migrations)} migration(s) require a semantic LLM step.")
-        print("  Run vault-migrate in Claude Code to complete these:\n")
+        print("  Run vault-migrate in Claude Code or Gemini CLI to complete these:\n")
         for m in llm_migrations:
             print(f"  [{m['from']} \u2192 {m['to']}] {m.get('llm_instructions', '(see migration spec)')}")
 

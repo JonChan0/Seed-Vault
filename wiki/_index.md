@@ -2,13 +2,12 @@
 title: "Wiki Index"
 type: index
 updated: 2026-04-08
-framework_version: "2.0.0"
 ---
 
 # Wiki Index
 
 ## Concepts
-*(No concepts yet — ingest sources and ask the LLM to compile)*
+*(No concepts yet — ingest sources and use vault-compile)*
 
 ## Source Summaries
 *(No sources yet — drop files into `raw/` and use vault-ingest)*
@@ -17,7 +16,7 @@ framework_version: "2.0.0"
 *(No topics yet — topics are created automatically during compilation)*
 
 ## Visualizations
-*(No visualizations yet — ask the LLM to visualize data from the wiki)*
+*(No visualizations yet — use vault-visualize)*
 
 ## Outputs
 *(No outputs yet)*

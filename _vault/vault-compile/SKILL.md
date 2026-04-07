@@ -181,7 +181,7 @@ After creating or updating articles, rebuild the index:
 uv run python _vault/lib/index.py
 ```
 
-Or manually update `wiki/_index.md` with entries in the correct section.
+This rewrites `wiki/_index.md` from scratch — do not edit the index manually.
 
 ---
 

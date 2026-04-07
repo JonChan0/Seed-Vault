@@ -26,17 +26,11 @@ desktop.ini
 raw/
 !raw/.gitkeep
 
-# Wiki content — opt-in per wiki instance
-# The template ships empty; each wiki's content stays local unless you want it tracked
-wiki/concepts/
-wiki/sources/
-wiki/topics/
-!wiki/concepts/.gitkeep
-!wiki/sources/.gitkeep
-!wiki/topics/.gitkeep
-!wiki/_index.md
-!wiki/_log.md
-!wiki/_migration-log.md
+# Wiki content — local only, never tracked
+# All wiki/ files are generated locally by the LLM and deterministic engines.
+# Tracking them would cause merge conflicts when pulling framework updates.
+# install.sh creates wiki/_index.md on first run if it doesn't exist.
+wiki/
 
 # Outputs and visualizations — ephemeral, not tracked
 outputs/

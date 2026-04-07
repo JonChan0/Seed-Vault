@@ -7,13 +7,21 @@ description: Migrate existing wiki articles to match the current framework versi
 
 You are migrating a Seed Vault wiki from an older framework version to the current one. The heavy lifting is done by `_vault/migrate.py` — a deterministic Python script that applies structural changes (frontmatter field additions, renames, deletions) without any LLM involvement. Your role is to run the script, report results, and handle any semantic migration steps that require LLM reasoning.
 
+**How version tracking works after a framework update:**
+- `git merge upstream/main` updates `_vault/VERSION` to the new framework version
+- `wiki/.vault_version` (gitignored, local-only) records what version the existing articles are at
+- `migrate.py` reads both and applies only the migrations between those two versions
+- After migration completes, it writes the new version into `wiki/.vault_version`
+
+Because `wiki/` is fully gitignored, there are no merge conflicts when pulling framework updates.
+
 ---
 
 ## Step 1: Version Check
 
-Read `_vault/VERSION` and `wiki/_index.md` frontmatter.
+Read `_vault/VERSION` (new framework version, updated by `git merge`) and `wiki/.vault_version` (current vault version, reflects existing articles).
 
-- If `wiki/_index.md` has no `framework_version:` field, the vault is at `0.0.0`
+- If `wiki/.vault_version` does not exist, the vault is at `0.0.0` (new or pre-versioned)
 - Compare the two versions
 
 If they match: report "Your vault is already at framework version X.Y.Z. No migration needed." and stop.
@@ -88,4 +96,5 @@ Run vault-lint to verify no issues were introduced.
 - **Scoped migration**: `uv run python _vault/migrate.py --path wiki/concepts/`
 - **Rollback**: Not supported. Suggest git backup first
 - **Re-running**: Idempotent — "Already current. 0 changes."
-- **Framework authors**: Bump `_vault/VERSION`, add JSON to `_vault/migrations/`. Migrations with `requires_llm: true` must include `llm_instructions`.
+- **No merge conflicts**: `wiki/` is fully gitignored — `wiki/.vault_version` and all other wiki files are local-only and never part of a git merge
+- **Framework authors**: Bump `_vault/VERSION` and add a JSON file to `_vault/migrations/` — end users receive both via `git merge upstream/main`. Migrations with `requires_llm: true` must include `llm_instructions`.

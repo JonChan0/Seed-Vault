@@ -127,17 +127,75 @@ fi
 
 echo ""
 
+# ── Wiki bootstrap ────────────────────────────────────────────────────────────
+# wiki/ is fully gitignored — create the minimum skeleton if this is a fresh clone.
+WIKI_DIR="$VAULT_ROOT/wiki"
+mkdir -p "$WIKI_DIR/concepts" "$WIKI_DIR/sources" "$WIKI_DIR/topics"
+
+INDEX_FILE="$WIKI_DIR/_index.md"
+if [ ! -f "$INDEX_FILE" ]; then
+    TODAY=$(date +%Y-%m-%d)
+    cat > "$INDEX_FILE" <<EOF
+---
+title: "Wiki Index"
+type: index
+updated: $TODAY
+---
+
+# Wiki Index
+
+## Concepts
+*(No concepts yet — ingest sources and use vault-compile)*
+
+## Source Summaries
+*(No sources yet — drop files into \`raw/\` and use vault-ingest)*
+
+## Topics
+*(No topics yet — topics are created automatically during compilation)*
+
+## Visualizations
+*(No visualizations yet — use vault-visualize)*
+
+## Outputs
+*(No outputs yet)*
+
+---
+*Last updated: $TODAY | Total articles: 0*
+EOF
+    echo "Created wiki/_index.md (fresh vault)"
+fi
+
+LOG_FILE="$WIKI_DIR/_log.md"
+if [ ! -f "$LOG_FILE" ]; then
+    cat > "$LOG_FILE" <<EOF
+---
+title: "Operation Log"
+type: log
+updated: $(date +%Y-%m-%d)
+---
+
+# Operation Log
+
+EOF
+    echo "Created wiki/_log.md"
+fi
+# ─────────────────────────────────────────────────────────────────────────────
+
 # ── Version check ─────────────────────────────────────────────────────────────
 VERSION_FILE="$SCRIPT_DIR/VERSION"
-INDEX_FILE="$VAULT_ROOT/wiki/_index.md"
-if [ -f "$VERSION_FILE" ] && [ -f "$INDEX_FILE" ]; then
+VAULT_VERSION_FILE="$WIKI_DIR/.vault_version"
+if [ -f "$VERSION_FILE" ]; then
     fw_ver=$(cat "$VERSION_FILE" | tr -d '[:space:]')
-    vault_ver=$(grep 'framework_version:' "$INDEX_FILE" 2>/dev/null | sed 's/.*: *["\x27]*\([^"'\'']*\)["\x27]*.*/\1/' | tr -d '[:space:]')
+    if [ -f "$VAULT_VERSION_FILE" ]; then
+        vault_ver=$(cat "$VAULT_VERSION_FILE" | tr -d '[:space:]')
+    else
+        vault_ver=""
+    fi
     if [ -z "$vault_ver" ]; then
-        echo "⚠ This vault predates framework versioning (framework is now v$fw_ver)."
-        echo "  Run vault-migrate in Claude Code to update your wiki articles."
+        echo "⚠ This vault has no version record (framework is now v$fw_ver)."
+        echo "  Run vault-migrate in Claude Code or Gemini CLI to update your wiki articles."
     elif [ "$vault_ver" != "$fw_ver" ]; then
-        echo "⚠ Framework updated to v$fw_ver (vault is at v$vault_ver)."
+        echo "⚠ Framework updated to v$fw_ver (vault articles are at v$vault_ver)."
         echo "  Run vault-migrate in Claude Code or Gemini CLI to update your wiki articles."
     else
         echo "✓ Vault is current (framework v$fw_ver)."

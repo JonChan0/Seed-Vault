@@ -153,17 +153,12 @@ To find existing concept articles for the "Concepts Extracted" section:
 
 ## Step 6: Update Index
 
-**Rebuild the index** using the deterministic engine:
+Rebuild the index using the deterministic engine:
 ```bash
 uv run python _vault/lib/index.py
 ```
 
-Or if you prefer a targeted update, manually append to `wiki/_index.md` under the `## Source Summaries` section:
-```
-- [[Summary: {{Full Title}}]] — {{one-line description}}
-```
-
-Also update the `*Last updated*` line in `_index.md`.
+This rewrites `wiki/_index.md` from scratch — do not edit the index manually.
 
 ---
 

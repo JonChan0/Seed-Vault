@@ -26,7 +26,6 @@ from pathlib import Path
 VAULT_ROOT = Path(__file__).resolve().parent.parent.parent
 WIKI_DIR = VAULT_ROOT / "wiki"
 INDEX_FILE = WIKI_DIR / "_index.md"
-VERSION_FILE = VAULT_ROOT / "_vault" / "VERSION"
 
 # Files to exclude from scanning
 EXCLUDED_NAMES = {"_index.md", "_log.md", "_migration-log.md", "_catalog.md"}
@@ -79,14 +78,6 @@ except ImportError:
 # Helpers
 # ---------------------------------------------------------------------------
 
-def read_version() -> str:
-    """Read the framework version from _vault/VERSION."""
-    try:
-        return VERSION_FILE.read_text(encoding="utf-8").strip()
-    except OSError:
-        return "2.0.0"
-
-
 def is_excluded(path: Path) -> bool:
     """Return True if this file should be skipped."""
     return path.name in EXCLUDED_NAMES or path.suffix in EXCLUDED_SUFFIXES
@@ -124,10 +115,10 @@ TYPE_ORDER = [
 ]
 
 PLACEHOLDER = {
-    "concept":        "*(No concepts yet — ingest sources and ask Claude to compile)*",
-    "source-summary": "*(No sources yet — drop files into `raw/` and use seed-ingest)*",
+    "concept":        "*(No concepts yet — ingest sources and use vault-compile)*",
+    "source-summary": "*(No sources yet — drop files into `raw/` and use vault-ingest)*",
     "topic":          "*(No topics yet — topics are created automatically during compilation)*",
-    "visualization":  "*(No visualizations yet — ask Claude to visualize data from the wiki)*",
+    "visualization":  "*(No visualizations yet — use vault-visualize)*",
     "output":         "*(No outputs yet)*",
 }
 
@@ -170,7 +161,7 @@ def collect_articles(wiki_dir: Path) -> dict[str, list[dict]]:
     return groups
 
 
-def build_index_text(groups: dict[str, list[dict]], today: str, version: str) -> str:
+def build_index_text(groups: dict[str, list[dict]], today: str) -> str:
     """Render the full _index.md content."""
     total = sum(len(v) for v in groups.values())
 
@@ -182,7 +173,6 @@ def build_index_text(groups: dict[str, list[dict]], today: str, version: str) ->
         'title: "Wiki Index"',
         "type: index",
         f"updated: {today}",
-        f'framework_version: "{version}"',
         "---",
         "",
     ]
@@ -264,7 +254,6 @@ def main() -> None:
     args = parser.parse_args()
 
     today = date.today().isoformat()
-    version = read_version()
 
     # Count entries in the existing index before overwriting
     previous_count = count_previous_entries(INDEX_FILE)
@@ -277,7 +266,7 @@ def main() -> None:
         groups = collect_articles(WIKI_DIR)
 
     # Generate index text
-    index_text = build_index_text(groups, today, version)
+    index_text = build_index_text(groups, today)
 
     # Write _index.md
     WIKI_DIR.mkdir(parents=True, exist_ok=True)

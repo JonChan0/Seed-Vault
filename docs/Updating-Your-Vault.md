@@ -34,7 +34,7 @@ git merge upstream/main --allow-unrelated-histories
 
 **What gets merged:** Everything tracked in git — `_vault/` skills & engines, `CLAUDE.md`, `GEMINI.md`, `_templates/`, `.obsidian/`, `pyproject.toml`.
 
-**What is never touched:** `raw/`, `wiki/`, `viz/`, `outputs/` — these are gitignored and live only on your machine.
+**What is never touched:** `raw/`, `wiki/`, `viz/`, `outputs/` — these are fully gitignored and live only on your machine. No merge conflicts are possible on wiki content.
 
 ### After merging
 
