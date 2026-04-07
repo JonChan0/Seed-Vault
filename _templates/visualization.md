@@ -7,6 +7,8 @@ sources: []
 tags: [visualization]
 status: draft
 viz_file: "viz/{{filename}}.html"
+llm_model: ""
+framework_version: ""
 ---
 
 # {{title}}

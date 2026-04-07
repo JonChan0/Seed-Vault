@@ -8,6 +8,8 @@ source_url: ""
 author: ""
 tags: []
 status: draft
+llm_model: ""
+framework_version: ""
 ---
 
 # {{source_title}}

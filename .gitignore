@@ -10,6 +10,10 @@ desktop.ini
 .obsidian/themes/
 .obsidian/snippets/
 
+# Gemini CLI skills directory — hard-linked from _vault/vault-*/SKILL.md by install.sh
+# Content is already tracked in _vault/; this directory is derived
+skills/
+
 # Raw sources — often large or sensitive; opt-in per wiki instance
 # Uncomment to track raw sources in git:
 # !raw/*.md

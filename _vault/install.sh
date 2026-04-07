@@ -124,3 +124,62 @@ fi
 # ─────────────────────────────────────────────────────────────────────────────
 
 echo "Next step: run /reload-plugins in Claude Code to activate the skills."
+
+# ── Gemini CLI skill setup (hard links in skills/) ───────────────────────────
+echo ""
+echo "Setting up Gemini CLI skills directory..."
+echo ""
+
+GEMINI_SKILLS_DIR="$VAULT_ROOT/skills"
+mkdir -p "$GEMINI_SKILLS_DIR"
+
+gemini_installed=0
+gemini_updated=0
+
+for skill_dir in "$SCRIPT_DIR"/vault-*/; do
+    [ -d "$skill_dir" ] || continue
+    skill_name=$(basename "$skill_dir")
+    skill_md="$skill_dir/SKILL.md"
+    gemini_skill_dir="$GEMINI_SKILLS_DIR/$skill_name"
+    target="$gemini_skill_dir/SKILL.md"
+
+    [ -f "$skill_md" ] || continue
+
+    mkdir -p "$gemini_skill_dir"
+
+    if [ -f "$target" ]; then
+        # Check if it's already a hard link to the same inode
+        src_inode=$(stat -c '%i' "$skill_md" 2>/dev/null || stat -f '%i' "$skill_md" 2>/dev/null)
+        tgt_inode=$(stat -c '%i' "$target"   2>/dev/null || stat -f '%i' "$target"   2>/dev/null)
+        if [ "$src_inode" = "$tgt_inode" ]; then
+            echo "  = Current: $skill_name (hard link already up to date)"
+            continue
+        fi
+        rm "$target"
+    fi
+
+    # Create hard link (ln without -s)
+    if ln "$skill_md" "$target" 2>/dev/null; then
+        echo "  ✓ Hard-linked: $skill_name → skills/$skill_name/SKILL.md"
+        gemini_installed=$((gemini_installed + 1))
+    else
+        # Fallback: hard links can fail across filesystems — use symlink instead
+        ln -sf "$skill_md" "$target"
+        echo "  ~ Symlinked:   $skill_name (cross-filesystem fallback)"
+        gemini_installed=$((gemini_installed + 1))
+    fi
+done
+
+echo ""
+echo "Gemini skills ready in skills/ ($gemini_installed installed/updated)."
+
+# Check for Gemini CLI
+if command -v gemini &>/dev/null; then
+    echo "✓ gemini CLI found: $(gemini --version 2>/dev/null | head -1)"
+else
+    echo "ℹ gemini CLI not found (optional — needed to use this vault with Gemini)"
+    echo "  Install: npm install -g @google/gemini-cli"
+fi
+echo ""
+echo "Gemini CLI users: open this vault directory with 'gemini' — GEMINI.md and skills/ are auto-loaded."
+# ─────────────────────────────────────────────────────────────────────────────
