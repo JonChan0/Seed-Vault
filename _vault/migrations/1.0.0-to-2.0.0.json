@@ -1,0 +1,17 @@
+{
+  "from": "1.0.0",
+  "to": "2.0.0",
+  "date": "2026-04-07",
+  "description": "Upgrade to vault-* framework: bump framework_version to 2.0.0",
+  "requires_reindex": true,
+  "requires_llm": false,
+  "operations": [
+    {
+      "op": "set_field",
+      "field": "framework_version",
+      "value": "2.0.0",
+      "affects": "all",
+      "note": "Update framework_version from 1.0.0 to 2.0.0 on all wiki articles"
+    }
+  ]
+}
