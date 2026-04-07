@@ -4,10 +4,10 @@ Seed Vault — Incremental Wiki Migration Runner
 Applies structural migrations to wiki articles when the framework version changes.
 
 Usage:
-  python3 _seeds/migrate.py                     # Apply pending migrations
-  python3 _seeds/migrate.py --dry-run           # Show what would change, no writes
-  python3 _seeds/migrate.py --from-version 0.0.0  # Override detected vault version
-  python3 _seeds/migrate.py --path wiki/topics/ # Scope to a subdirectory
+  python3 _vault/migrate.py                     # Apply pending migrations
+  python3 _vault/migrate.py --dry-run           # Show what would change, no writes
+  python3 _vault/migrate.py --from-version 0.0.0  # Override detected vault version
+  python3 _vault/migrate.py --path wiki/topics/ # Scope to a subdirectory
 """
 
 import json
@@ -213,7 +213,7 @@ def find_wiki_files(scope_path: str = None) -> list:
     Excludes system files: _index.md, _catalog.md, _migration-log.md, *.base
     """
     base = VAULT_ROOT / scope_path if scope_path else VAULT_ROOT / "wiki"
-    exclude = {"_index.md", "_catalog.md", "_migration-log.md"}
+    exclude = {"_index.md", "_catalog.md", "_migration-log.md", "_log.md"}
 
     files = []
     for p in sorted(Path(base).rglob("*.md")):
@@ -257,7 +257,7 @@ def write_vault_version(version: str, dry_run: bool):
 
 def append_migration_log(from_v: str, to_v: str, affected: int, dry_run: bool):
     today = date.today().isoformat()
-    row = f"| {today} | {from_v} | {to_v} | {affected} articles updated | seed-migrate |"
+    row = f"| {today} | {from_v} | {to_v} | {affected} articles updated | vault-migrate |"
 
     if dry_run:
         return
@@ -450,14 +450,14 @@ def main():
     # LLM migration instructions
     if llm_migrations:
         print(f"\n⚠ {len(llm_migrations)} migration(s) require a semantic LLM step.")
-        print("  Run seed-migrate in Claude Code to complete these:\n")
+        print("  Run vault-migrate in Claude Code to complete these:\n")
         for m in llm_migrations:
-            print(f"  [{m['from']} → {m['to']}] {m.get('llm_instructions', '(see migration spec)')}")
+            print(f"  [{m['from']} \u2192 {m['to']}] {m.get('llm_instructions', '(see migration spec)')}")
 
     # Post-migration hints
     needs_reindex = any(m.get("requires_reindex") for m in pending)
     if needs_reindex and not dry_run:
-        print("\nNote: one or more migrations require a re-index. Run seed-index to rebuild _index.md and _catalog.md.")
+        print("\nNote: one or more migrations require a re-index. Run vault-index to rebuild _index.md.")
 
 
 if __name__ == "__main__":

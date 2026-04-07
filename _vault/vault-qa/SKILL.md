@@ -1,47 +1,45 @@
 ---
-name: seed-qa
-description: Answer questions by researching the Seed Vault wiki. Use this skill when the user asks "what does the wiki say about X", "what do we know about X", "summarize X from the wiki", "find information about X", "research X", "answer this question using the wiki", "what have we collected on X", or any question that should be answered from the knowledge base rather than from Claude's general knowledge. Also use when the user asks to save an answer as a wiki article or output file.
+name: vault-qa
+description: Answer questions by researching the wiki. Use when the user asks "what does the wiki say about X", "what do we know about X", "summarize X from the wiki", "research X", "answer this question using the wiki", or any question that should be answered from the knowledge base rather than general knowledge. Also use when the user asks to save an answer as a wiki article or output file.
 ---
 
-# seed-qa — Wiki Question Answering
+# vault-qa — Wiki Question Answering
 
 You are answering a question by researching the Seed Vault wiki. The answer must come from the wiki's collected knowledge — cite sources using `[[wikilinks]]`, acknowledge gaps, and suggest follow-up.
 
 ---
 
-## Step 1: Read the Catalog
+## Step 1: Search with qmd (Deterministic Retrieval)
 
-Always start here. Read `wiki/_catalog.md` in full.
+Use qmd for scalable, deterministic retrieval:
 
-Scan the catalog for entries relevant to the question. Note:
-- Which articles are directly relevant (will need to read in full)
-- Which are peripherally relevant (may need to skim)
-- What topics and tags cluster around the question
-- The `Status:` of each relevant article — track whether sources are `verified`, `reviewed`, or `draft`
+```bash
+qmd query "{{user's question}}" --collection vault --limit 10
+```
 
-If the catalog is empty or sparse, say so and suggest the user ingest sources first.
+This returns ranked results with context snippets. Note the top articles by relevance.
+
+**Fallback** (if qmd is not available): Read `wiki/_index.md` to understand what articles exist, then use Grep to find relevant content:
+```
+Grep pattern="{{keyword}}" path="wiki/" glob="*.md"
+```
 
 ---
 
-## Step 2: Retrieve Relevant Articles
+## Step 2: Retrieve Relevant Articles (LLM)
 
-Read the full content of directly relevant articles identified in Step 1.
+Read the full content of the top-N articles identified by qmd (or the index+grep fallback).
 
 Prioritize reading order:
 1. Concept articles on the core topic
 2. Topic hub pages for the domain
 3. Source summaries if you need primary evidence
 
-Use Grep to find additional relevant articles not caught by the catalog scan:
-```
-Grep pattern="{{keyword}}" path="wiki/" glob="*.md"
-```
-
 Cap at reading ~15 articles. If more seem relevant, note that the answer may be incomplete.
 
 ---
 
-## Step 3: Synthesize the Answer
+## Step 3: Synthesize the Answer (LLM)
 
 Before writing the answer, assess the confidence level based on the `status:` of articles consulted:
 - **HIGH**: All directly relevant articles are `verified`
@@ -53,7 +51,7 @@ Write a thorough answer using only what's in the wiki:
 ```markdown
 ## Answer: {{Question}}
 
-> **Confidence: HIGH | MEDIUM | LOW** — *(one-line reason: e.g., "all sources verified" / "2 of 4 sources are draft" / "no directly relevant articles found")*
+> **Confidence: HIGH | MEDIUM | LOW** — *(one-line reason)*
 
 {{Main answer — direct response to the question}}
 
@@ -88,8 +86,6 @@ The wiki doesn't currently cover:
 
 ## Step 4: Save the Output (if requested)
 
-If the user wants to save the answer:
-
 **As an output file** (ephemeral):
 Save to `outputs/qa-{{topic}}-{{today}}.md` with frontmatter:
 ```yaml
@@ -113,6 +109,6 @@ If the answer reveals a gap or synthesizes something worth keeping, offer to cre
 After answering, note:
 - New concepts mentioned in the answer that don't have wiki articles
 - Sources that would fill the identified gaps
-- Connections between articles that should be made explicit (new backlinks to add)
+- Connections between articles that should be made explicit
 
-Offer: "I found {{N}} concepts mentioned that don't have articles yet. Run `seed-compile` to create them?"
+Offer: "I found {{N}} concepts mentioned that don't have articles yet. Run `vault-compile` to create them?"

@@ -10,18 +10,34 @@ This is a **Seed Vault** wiki. Claude is the primary author of all wiki content.
 |-----------|---------|------------|
 | `raw/` | Source documents — articles, PDFs converted to .md, web clips | User (Claude never modifies) |
 | `wiki/` | All compiled wiki articles | Claude only |
-| `wiki/_index.md` | Master index of every article in the wiki | Claude (always keep current) |
+| `wiki/_index.md` | Master index of every article in the wiki | Deterministic engine + Claude |
 | `wiki/_index.base` | Obsidian Bases view of the index (auto-populated from frontmatter) | Do not modify |
-| `wiki/_catalog.md` | 2–3 sentence summary of every article (LLM search index) | Claude (always keep current) |
-| `wiki/_catalog.base` | Obsidian Bases view of the catalog (auto-populated from frontmatter) | Do not modify |
-| `wiki/_migration-log.md` | Record of applied framework migrations | Do not modify (managed by seed-migrate) |
+| `wiki/_log.md` | Append-only operation log (pipeline, ingest, lint events) | Deterministic engines |
+| `wiki/_migration-log.md` | Record of applied framework migrations | Do not modify (managed by vault-migrate) |
 | `wiki/concepts/` | Concept articles synthesized from multiple sources | Claude |
 | `wiki/sources/` | One summary per file in `raw/` | Claude |
 | `wiki/topics/` | Topic hub pages that cluster related concepts | Claude |
 | `viz/` | Self-contained HTML visualizations | Claude |
 | `outputs/` | Q&A reports, lint reports, one-off outputs (gitignored — ephemeral) | Claude |
 | `_templates/` | Obsidian article templates | Do not modify |
-| `_seeds/` | Skill definitions (installed via install.sh) | Do not modify |
+| `_vault/` | Skill definitions, deterministic engines, migrations (installed via install.sh) | Do not modify |
+| `_vault/lib/` | Python engines for deterministic operations (lint, digest, verify, etc.) | Do not modify |
+
+---
+
+## Architecture: Deterministic-First
+
+The vault follows a **deterministic-first** pattern. Each operation runs a Python engine first (structural analysis, file conversion, claim extraction), then Claude handles what machines can't (synthesis, semantic verification, article writing).
+
+### Three-layer architecture:
+1. **Raw sources** (`raw/`): Immutable, user-curated
+2. **Wiki** (`wiki/`): LLM-generated, interlinked
+3. **Schema** (`_vault/`): Configuration, skills, engines, migrations
+
+### Dependencies:
+- **uv** — Python dependency management (`uv sync` to install)
+- **qmd** — Search indexing (`npm install -g @tobilu/qmd`)
+- **pandoc** — Optional, for PDF/DOCX conversion
 
 ---
 
@@ -38,7 +54,7 @@ updated: YYYY-MM-DD
 sources: ["[[Source Name]]", "[[Another Source]]"]
 tags: [topic/subtopic, another-tag]
 status: draft | reviewed | verified
-framework_version: "1.0.0"
+framework_version: "2.0.0"
 ---
 ```
 
@@ -46,7 +62,7 @@ framework_version: "1.0.0"
 - `sources` must use `[[wikilinks]]` — these create graph edges to source summaries
 - `tags` should be hierarchical: `#biology/genetics`, `#method/sequencing`
 - Update `updated:` every time you modify an article
-- `framework_version` tracks which framework version wrote this article — read from `_seeds/VERSION` at write time
+- `framework_version` tracks which framework version wrote this article — read from `_vault/VERSION` at write time
 
 ---
 
@@ -70,22 +86,18 @@ framework_version: "1.0.0"
 
 ---
 
-## The Catalog — Claude's Search Index
+## Index — Navigation & Search
 
-`wiki/_catalog.md` is how Claude searches the wiki without reading every file. It must be kept up to date.
+`wiki/_index.md` is the human-navigable master index organized by type. It is generated deterministically by `_vault/lib/index.py`.
 
-**Format for each entry:**
-```
-### [[Article Title]]
-Type: concept | source-summary | topic
-Tags: tag1, tag2
-Status: draft | reviewed | verified
-Summary: 2–3 sentences describing what this article covers and its key claims.
+**Search and retrieval** is handled by **qmd** (BM25 + vector search). No separate catalog file — qmd scales to any wiki size without consuming LLM context.
+
+**Rule:** After creating or updating ANY article, rebuild the index:
+```bash
+uv run python _vault/lib/index.py --rebuild-qmd
 ```
 
-**Rule:** After creating or updating ANY article, immediately update both:
-1. `wiki/_index.md` — add/update the entry line
-2. `wiki/_catalog.md` — add/update the summary block
+Or manually append the entry to `wiki/_index.md` if doing a single article.
 
 ---
 
@@ -97,20 +109,35 @@ Summary: 2–3 sentences describing what this article covers and its key claims.
 # Wiki Index
 
 ## Concepts
-- [[Concept Name]] — one-line description
+- [[Concept Name]] — tags: tag1, tag2
 
 ## Source Summaries
-- [[Summary: Source Title]] — one-line description
+- [[Summary: Source Title]] — tags: tag1, tag2
 
 ## Topics
-- [[Topic: Topic Name]] — one-line description
+- [[Topic: Topic Name]] — tags: tag1, tag2
 
 ## Visualizations
-- [[Viz: Visualization Name]] — one-line description
+- [[Viz: Visualization Name]] — tags: tag1, tag2
 
 ---
 *Last updated: YYYY-MM-DD | Total articles: N*
 ```
+
+---
+
+## Operation Log
+
+`wiki/_log.md` is an append-only log of pipeline operations:
+
+```
+[2026-04-07 ingest] raw/crispr-revolution.md → wiki/sources/summary-crispr-revolution.md
+[2026-04-07 compile] Created 3 concept articles from 2 sources
+[2026-04-07 index] Rebuilt: 15 concepts, 8 sources, 3 topics (qmd: 26 docs indexed)
+[2026-04-07 lint] 2 broken links, 1 orphan — 2 auto-fixed
+```
+
+Deterministic engines append to this log automatically. The pipeline reads it to avoid re-processing.
 
 ---
 
@@ -120,16 +147,31 @@ Ten skills power this vault. Invoke them by describing what you want:
 
 | Skill | When to use |
 |-------|------------|
-| `seed-ingest` | "Ingest this PDF/article/URL" — converts raw sources to structured markdown |
-| `seed-compile` | "Compile the wiki" / "Write an article about X" — builds concept articles from raw |
-| `seed-pipeline` | "Process everything" / "Run the pipeline" — full ingest→compile→index→lint in one pass |
-| `seed-index` | "Reindex" / "Rebuild catalog" — regenerates _index.md and _catalog.md |
-| `seed-qa` | "What does the wiki say about X?" — researches and answers from wiki content |
-| `seed-verify` | "Fact-check this article" — cross-references claims against sources and web |
-| `seed-lint` | "Check the wiki health" — finds broken links, orphans, inconsistencies |
-| `seed-visualize` | "Visualize X" / "Chart Y" — generates HTML visualizations with wiki wrappers |
-| `seed-digest` | "Briefing" / "What's in the wiki?" — generates a status summary of vault contents |
-| `seed-migrate` | "Migrate my wiki" / "Apply framework updates" — updates existing articles after a framework version bump |
+| `vault-ingest` | "Ingest this PDF/article/URL" — converts raw sources to structured markdown |
+| `vault-compile` | "Compile the wiki" / "Write an article about X" — builds concept articles from raw |
+| `vault-pipeline` | "Process everything" / "Run the pipeline" — full ingest→compile→index→verify→lint in one pass |
+| `vault-index` | "Reindex" / "Rebuild index" — regenerates _index.md and rebuilds qmd search index |
+| `vault-qa` | "What does the wiki say about X?" — qmd retrieval + LLM synthesis |
+| `vault-verify` | "Fact-check this article" — deterministic claim extraction + clean-context LLM verification |
+| `vault-lint` | "Check the wiki health" — 9 deterministic structural checks + LLM review |
+| `vault-visualize` | "Visualize X" / "Chart Y" — generates HTML visualizations with wiki wrappers |
+| `vault-digest` | "Briefing" / "What's in the wiki?" — fully deterministic status summary |
+| `vault-migrate` | "Migrate my wiki" / "Apply framework updates" — updates existing articles after a framework version bump |
+
+### Deterministic vs LLM split:
+
+| Skill | Deterministic | LLM |
+|-------|--------------|-----|
+| vault-ingest | convert.py: PDF/HTML→MD | Create source summary, extract metadata |
+| vault-compile | — | Full LLM: synthesize concepts, write articles |
+| vault-pipeline | pipeline.py: detect new/changed files | Calls vault-ingest, vault-compile, vault-verify |
+| vault-index | index.py: generate _index.md + qmd | — (fully deterministic) |
+| vault-qa | qmd search for retrieval | Synthesize answer from retrieved articles |
+| vault-verify | verify.py: pattern match claims | Clean-context subagent for semantic verification |
+| vault-lint | lint.py: 9 structural checks | Review complex issues, suggest fixes |
+| vault-digest | digest.py: full stats generation | — (fully deterministic) |
+| vault-migrate | migrate.py (existing) | Handle `requires_llm` migration steps |
+| vault-visualize | — | Full LLM: create HTML vizs |
 
 ---
 
@@ -153,19 +195,19 @@ These MCP servers enhance vault capabilities when installed in Claude Code. None
 
 | MCP Server | Benefit | Install |
 |------------|---------|---------|
-| **Brave Search** or **Tavily** | Richer web search in `seed-verify` and `seed-qa` beyond the default WebSearch tool | `claude mcp add brave-search` |
-| **Zotero** | Sync your academic reference library — auto-ingest tagged references via `seed-ingest` | Community MCP |
+| **Brave Search** or **Tavily** | Richer web search in `vault-verify` and `vault-qa` beyond the default WebSearch tool | `claude mcp add brave-search` |
+| **Zotero** | Sync your academic reference library — auto-ingest tagged references via `vault-ingest` | Community MCP |
 | **GitHub** | Ingest README/docs/wikis from public repos as sources | `claude mcp add github` |
 | **Obsidian** | Direct vault read/write without the Claude Code CLI (useful for remote sessions) | Community MCP |
-| **PubMed / Semantic Scholar** | Native academic paper lookup in `seed-verify` (free API also works without MCP — see skill) | Community MCP |
+| **PubMed / Semantic Scholar** | Native academic paper lookup in `vault-verify` (free API also works without MCP — see skill) | Community MCP |
 
-Even without MCP servers, `seed-verify` uses free public APIs (Semantic Scholar, CrossRef, Wayback Machine) for external verification. MCP servers add speed and depth.
+Even without MCP servers, `vault-verify` uses free public APIs (Semantic Scholar, CrossRef, Wayback Machine) for external verification. MCP servers add speed and depth.
 
 ---
 
 ## Initialization Checklist (new vault)
 
 When starting a brand-new vault, before ingesting any sources:
-1. Confirm `wiki/_index.md` and `wiki/_catalog.md` exist (create if missing)
+1. Confirm `wiki/_index.md` exists (create if missing)
 2. Ask the user: "What topic/domain is this vault for?" — add a brief vault description to `_index.md`
 3. Ask the user: "Do you have sources ready to ingest, or should we start with compilation?"

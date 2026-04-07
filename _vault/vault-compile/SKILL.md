@@ -1,9 +1,9 @@
 ---
-name: seed-compile
-description: Compile and build the Seed Vault wiki from raw sources. Use this skill whenever the user says "compile", "build the wiki", "write an article about X", "create a concept page for X", "compile wiki from raw", "update the wiki", "rebuild", "generate articles", or asks Claude to turn raw sources into wiki content. This is the core wiki-building skill — it reads raw sources and source summaries, extracts concepts, and writes interconnected Obsidian articles with backlinks.
+name: vault-compile
+description: Compile and build the wiki from raw sources. Use when the user says "compile", "build the wiki", "write an article about X", "create a concept page for X", "update the wiki", "rebuild", "generate articles", or asks to turn raw sources into wiki content. This is the core wiki-building skill — it reads raw sources and source summaries, extracts concepts, and writes interconnected Obsidian articles with backlinks.
 ---
 
-# seed-compile — Wiki Compilation Engine
+# vault-compile — Wiki Compilation Engine
 
 You are building or updating the Seed Vault wiki. Your job is to synthesize raw source material into interconnected, well-linked markdown articles that form a rich knowledge graph in Obsidian.
 
@@ -17,12 +17,12 @@ There are two modes:
 
 Before writing anything:
 
-1. Read `_seeds/VERSION` — note the version string for the `framework_version:` field in all articles you write this session
-2. Read `wiki/_catalog.md` — understand what articles already exist
-3. Read `wiki/_index.md` — see the current wiki structure
-4. `Glob wiki/sources/*.md` — list all source summaries
-5. `Glob raw/*.md` — list all raw sources
-6. Identify which source summaries are missing concept articles (check "Concepts Extracted" sections in summaries against _catalog.md)
+1. Read `_vault/VERSION` — note the version string for the `framework_version:` field
+2. Read `wiki/_index.md` — see the current wiki structure
+3. `Glob wiki/sources/*.md` — list all source summaries
+4. `Glob raw/*` — list all raw sources
+5. Use `qmd query "{{topic}}"` if available, or read source summaries directly to identify which concepts need articles
+6. Identify which source summaries are missing concept articles (check "Concepts Extracted" sections)
 
 Report what you found: "Found N source summaries. X concept articles exist. Y new concepts need articles: [list]"
 
@@ -46,7 +46,7 @@ sources: ["[[Summary: Source Title]]", "[[Summary: Another Source]]"]
 tags: [{{topic/subtopic}}, {{another-tag}}]
 status: draft
 aliases: ["{{alternate name}}", "{{abbreviation}}"]
-framework_version: "{{read from _seeds/VERSION}}"
+framework_version: "{{read from _vault/VERSION}}"
 ---
 
 # {{Concept Name}}
@@ -86,7 +86,7 @@ framework_version: "{{read from _seeds/VERSION}}"
 ### Linking Rules — Non-Negotiable
 
 1. **`sources:` frontmatter** must list every source summary that contributed
-2. **Inline `[[wikilinks]]`** throughout the text whenever another concept is mentioned — even if its article doesn't exist yet (unresolved links are fine in Obsidian and show as red nodes)
+2. **Inline `[[wikilinks]]`** throughout the text whenever another concept is mentioned
 3. **"Related Concepts"** section must have at least 2 links (if the wiki has other concepts)
 4. **"Part of Topics"** — link to the relevant topic hub page (create it if it doesn't exist)
 5. After writing this article, update the corresponding source summaries to add this concept under `## Concepts Extracted`
@@ -108,7 +108,7 @@ updated: {{today}}
 sources: []
 tags: [{{topic}}]
 status: draft
-framework_version: "{{read from _seeds/VERSION}}"
+framework_version: "{{read from _vault/VERSION}}"
 ---
 
 # Topic: {{Topic Name}}
@@ -169,26 +169,17 @@ After writing or updating any article, perform backlink checks:
 2. If it exists: read it and add the reverse link if missing
 3. If it doesn't exist yet: note it as an unresolved link (OK — will be created later)
 
-Use this pattern for reverse links in the target article's "See Also" or "Related Concepts":
-```
-- [[New Article]] — *(relationship)*
-```
-
 ---
 
-## Update Index and Catalog
+## Update Index
 
-After creating or updating each article:
+After creating or updating articles, rebuild the index:
 
-**Update `wiki/_index.md`**: Add/update entry in the correct section
-**Update `wiki/_catalog.md`**: Add/update the summary block:
-
-```markdown
-### [[{{Article Title}}]]
-Type: {{type}}
-Tags: {{tags}}
-Summary: {{2–3 sentences — key claims, what makes this article distinct, main connections}}
+```bash
+uv run python _vault/lib/index.py
 ```
+
+Or manually update `wiki/_index.md` with entries in the correct section.
 
 ---
 
@@ -199,4 +190,4 @@ After compilation, report:
 - Articles updated: [list]
 - Unresolved links (concepts mentioned but no article yet): [list]
 - Suggested topic hubs to create: [list]
-- Suggested next action: "Run `seed-lint` to check for broken links and orphan pages."
+- Suggested next action: "Run `vault-lint` to check for broken links and orphan pages."

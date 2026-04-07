@@ -1,13 +1,11 @@
 ---
 title: "Wiki Index"
 type: index
-updated: 2026-04-03
+updated: 2026-04-06
+framework_version: "2.0.0"
 ---
 
 # Wiki Index
-
-> This vault is powered by Seed Vault. Claude maintains all content in this wiki.
-> Add sources to `raw/` and ask Claude to compile, query, or enhance the wiki.
 
 ## Concepts
 *(No concepts yet — ingest sources and ask Claude to compile)*
@@ -21,5 +19,8 @@ updated: 2026-04-03
 ## Visualizations
 *(No visualizations yet — ask Claude to visualize data from the wiki)*
 
+## Outputs
+*(No outputs yet)*
+
 ---
-*Last updated: 2026-04-03 | Total articles: 0*
+*Last updated: 2026-04-06 | Total articles: 0*

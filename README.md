@@ -19,8 +19,14 @@ cd your-wiki-name
 
 ### Local Setup
 ```bash
-# Install the Claude skills (symlinks _seeds/ into ~/.claude/skills/)
-bash _seeds/install.sh
+# Install Python dependencies (requires uv)
+uv sync
+
+# Install qmd for search indexing
+npm install -g @tobilu/qmd
+
+# Install the Claude skills (symlinks _vault/ skills into ~/.claude/skills/)
+bash _vault/install.sh
 
 # Reload skills in Claude Code
 # /reload-plugins
@@ -38,8 +44,9 @@ Then in Claude Code, open the folder and say:
 
 | | GitHub (the template) | Your local wiki |
 |--|----------------------|--------------------|
-| `_seeds/` skills | ✅ tracked | ✅ tracked (symlinked) |
+| `_vault/` skills & engines | ✅ tracked | ✅ tracked (symlinked) |
 | `CLAUDE.md`, `_templates/`, `.obsidian/` | ✅ tracked | ✅ tracked |
+| `pyproject.toml` | ✅ tracked | ✅ tracked |
 | `raw/` source documents | ❌ gitignored | local only |
 | `wiki/` compiled articles | ❌ gitignored | local only |
 | `viz/` visualizations | ❌ gitignored | local only |
@@ -58,8 +65,14 @@ git remote add upstream https://github.com/you/seed-vault
 # Pull framework changes (skills, CLAUDE.md, templates)
 git fetch upstream
 git merge upstream/main --allow-unrelated-histories
-bash _seeds/install.sh   # re-run to pick up any new skills
+
+# Re-sync dependencies and re-install skills
+uv sync
+bash _vault/install.sh
 # /reload-plugins         # in Claude Code
+
+# If the framework version changed, migrate existing articles
+# Run vault-migrate in Claude Code
 ```
 
 ---
@@ -70,9 +83,17 @@ bash _seeds/install.sh   # re-run to pick up any new skills
 raw/          ← you drop source files here (PDFs, web clips, text)
   └── article.pdf, webpage.md, paper.pdf
 
+_vault/lib/   ← deterministic Python engines
+  ├── convert.py     file conversion (PDF/HTML/DOCX → MD)
+  ├── lint.py        9 structural health checks
+  ├── digest.py      statistics generator
+  ├── verify.py      claim extraction & source matching
+  ├── index.py       index generator + qmd rebuild
+  └── pipeline.py    orchestration (detect new/changed files)
+
 wiki/         ← Claude writes everything here
-  ├── _index.md        master index
-  ├── _catalog.md      Claude's search index (2–3 sentences per article)
+  ├── _index.md        master index (deterministically generated)
+  ├── _log.md          append-only operation log
   ├── concepts/        synthesized concept articles
   ├── sources/         one summary per raw/ file
   └── topics/          topic hub pages (cluster nodes for graph view)
@@ -81,7 +102,7 @@ viz/          ← self-contained HTML visualizations
 outputs/      ← Q&A reports, lint reports, one-offs
 ```
 
-Claude is the primary author of all files in `wiki/`, `viz/`, and `outputs/`. You never edit those directly — you direct Claude.
+Claude is the primary author of all files in `wiki/`, `viz/`, and `outputs/`. You never edit those directly — you direct Claude. Deterministic engines handle structural tasks (indexing, linting, claim extraction), while Claude handles synthesis and reasoning.
 
 ---
 
@@ -90,15 +111,16 @@ Claude is the primary author of all files in `wiki/`, `viz/`, and `outputs/`. Yo
 <!-- SKILLS:START -->
 | Skill Name | Say this... | Claude will... |
 |------------|-------------|----------------|
-| `seed-ingest` | "Ingest raw/paper.pdf" / "import this URL" | Convert PDF/HTML/URL → structured markdown in raw/, create source summary in wiki/sources/; supports YouTube transcripts and Wayback Machine fallback for dead URLs |
-| `seed-compile` | "Compile the wiki" / "write an article about X" | Build interconnected concept articles and topic hub pages from raw sources, with Recommended Reading Order on hub pages |
-| `seed-pipeline` | "Process everything" / "run the pipeline" | Orchestrate a full ingest → compile → index → lint pass in one command; idempotent (skips already-processed sources) |
-| `seed-index` | "Reindex" / "rebuild catalog" | Rebuild _index.md and _catalog.md; delta mode skips articles whose `updated:` date hasn't changed |
-| `seed-qa` | "What do we know about X?" / "research X" | Research and synthesize an answer from wiki content, cite with wikilinks; includes a Confidence (HIGH/MEDIUM/LOW) rating |
-| `seed-verify` | "Fact-check the X article" / "verify this" | Cross-reference claims against sources and web (Semantic Scholar, Wikipedia, CrossRef, PubMed, Wayback Machine); supports quick mode (internal-only) |
-| `seed-lint` | "Check the wiki health" / "lint" | Find broken links, orphan pages, missing backlinks, inconsistencies, and unsummarized raw/ files |
-| `seed-visualize` | "Visualize X as a chart" / "map out X" | Generate self-contained HTML chart/diagram (dark or light theme, including SVG) + Obsidian wrapper page |
-| `seed-digest` | "Briefing" / "what's in the wiki?" | Generate a vault status summary: article counts, recent updates, hub nodes, knowledge gaps, and suggested next actions |
+| `vault-ingest` | "Ingest raw/paper.pdf" / "import this URL" | Run convert.py for file conversion, then create source summary in wiki/sources/; supports YouTube transcripts and Wayback Machine fallback for dead URLs |
+| `vault-compile` | "Compile the wiki" / "write an article about X" | Build interconnected concept articles and topic hub pages from raw sources, with Recommended Reading Order on hub pages |
+| `vault-pipeline` | "Process everything" / "run the pipeline" | Run pipeline.py to detect changes, then orchestrate ingest → compile → index → verify (clean-context subagent) → lint |
+| `vault-index` | "Reindex" / "rebuild index" | Run index.py to rebuild _index.md and qmd search index; fully deterministic |
+| `vault-qa` | "What do we know about X?" / "research X" | Use qmd for retrieval, then synthesize an answer with citations and confidence rating |
+| `vault-verify` | "Fact-check the X article" / "verify this" | Run verify.py for claim extraction, then launch clean-context subagent for unbiased semantic verification |
+| `vault-lint` | "Check the wiki health" / "lint" | Run lint.py for 9 structural checks, then review complex issues and suggest fixes |
+| `vault-visualize` | "Visualize X as a chart" / "map out X" | Generate self-contained HTML chart/diagram + Obsidian wrapper page |
+| `vault-digest` | "Briefing" / "what's in the wiki?" | Run digest.py for fully deterministic vault status summary |
+| `vault-migrate` | "Migrate my wiki" / "apply updates" | Run migrate.py for structural changes, handle LLM migration steps if needed |
 <!-- SKILLS:END -->
 
 ---
@@ -127,21 +149,28 @@ HTML visualizations in `viz/` are embedded in wrapper `.md` pages via `<iframe>`
 your-wiki/
 ├── CLAUDE.md            Claude's operating instructions (auto-loaded)
 ├── README.md            This file
-├── _seeds/              Skill definitions (tracked in git)
+├── pyproject.toml       Python dependencies (managed by uv)
+├── _vault/              Skill definitions & engines (tracked in git)
+│   ├── VERSION          Framework version (2.0.0)
 │   ├── install.sh       Run once after cloning
-│   ├── seed-ingest/     Raw source → markdown converter
-│   ├── seed-compile/    Wiki article builder
-│   ├── seed-index/      Index & catalog rebuilder (maintains _index.md + _catalog.md)
-│   ├── seed-qa/         Question answering from the wiki
-│   ├── seed-verify/     Fact checker
-│   ├── seed-lint/       Health checker
-│   └── seed-visualize/  HTML visualization generator
+│   ├── migrate.py       Wiki migration runner
+│   ├── migrations/      Migration specs (JSON)
+│   ├── lib/             Deterministic Python engines
+│   ├── vault-ingest/    Raw source → markdown converter
+│   ├── vault-compile/   Wiki article builder
+│   ├── vault-pipeline/  Full pipeline orchestrator
+│   ├── vault-index/     Index & qmd rebuilder
+│   ├── vault-qa/        Question answering (qmd + LLM)
+│   ├── vault-verify/    Fact checker (deterministic + clean-context subagent)
+│   ├── vault-lint/      Health checker (9 deterministic checks + LLM review)
+│   ├── vault-digest/    Status briefing (fully deterministic)
+│   ├── vault-migrate/   Framework migration handler
+│   └── vault-visualize/ HTML visualization generator
 ├── _templates/          Obsidian article templates (tracked)
 ├── .obsidian/           Obsidian vault config (tracked)
 ├── raw/                 Source documents — gitignored, local only
 ├── wiki/                Compiled wiki — gitignored, local only
-│   ├── _index.base      Obsidian Bases view of the index (auto-populated)
-│   └── _catalog.base    Obsidian Bases view of the catalog (auto-populated)
+│   └── _index.base      Obsidian Bases view of the index (auto-populated)
 ├── viz/                 Visualizations — gitignored, local only
 └── outputs/             Reports & outputs — gitignored, local only
 ```
@@ -152,12 +181,12 @@ your-wiki/
 
 ![Seed Vault Workflow](workflow.png)
 
-> **Tip — Ingest from the web:** Use [Obsidian Web Clipper](https://obsidian.md/clipper) to save web pages directly into `raw/` as clean markdown. It pairs naturally with the `seed-ingest` skill and tags clipped pages with `#Clippings` automatically.
+> **Tip — Ingest from the web:** Use [Obsidian Web Clipper](https://obsidian.md/clipper) to save web pages directly into `raw/` as clean markdown. It pairs naturally with the `vault-ingest` skill and tags clipped pages with `#Clippings` automatically.
 
 Each cycle enriches the wiki. Q&A answers can become new concept articles. Visualizations become graph nodes. Verification adds sourcing depth.
 
 ---
 
-*Last updated: 2026-04-04 (skills: added seed-pipeline, seed-digest; improved seed-ingest, seed-index, seed-lint, seed-verify, seed-qa, seed-visualize; added Obsidian Bases views)*
+*Last updated: 2026-04-07 (v2.0: renamed seed-* → vault-*, added deterministic Python engines, qmd search integration, clean-context verification subagent, eliminated _catalog.md)*
 
-Inspired by: https://x.com/karpathy/status/2039805659525644595 
+Inspired by: https://x.com/karpathy/status/2039805659525644595
