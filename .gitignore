@@ -10,6 +10,16 @@ desktop.ini
 .obsidian/themes/
 .obsidian/snippets/
 
+# Claude Code — project-local settings and generated skill links
+# Skills are already tracked in _vault/vault-*/SKILL.md — no need to track the links too
+.claude/skills/
+.claude/settings.local.json
+.claude/todos.json
+
+# Gemini CLI — project-local settings and generated skill links
+# Skills are already tracked in _vault/vault-*/SKILL.md — no need to track the links too
+.gemini/skills/
+
 # Raw sources — often large or sensitive; opt-in per wiki instance
 # Uncomment to track raw sources in git:
 # !raw/*.md

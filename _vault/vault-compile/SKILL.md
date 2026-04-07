@@ -46,6 +46,7 @@ sources: ["[[Summary: Source Title]]", "[[Summary: Another Source]]"]
 tags: [{{topic/subtopic}}, {{another-tag}}]
 status: draft
 aliases: ["{{alternate name}}", "{{abbreviation}}"]
+llm_model: "{{your model ID, e.g. claude-sonnet-4-6 or gemini-2.5-pro}}"
 framework_version: "{{read from _vault/VERSION}}"
 ---
 
@@ -108,6 +109,7 @@ updated: {{today}}
 sources: []
 tags: [{{topic}}]
 status: draft
+llm_model: "{{your model ID, e.g. claude-sonnet-4-6 or gemini-2.5-pro}}"
 framework_version: "{{read from _vault/VERSION}}"
 ---
 

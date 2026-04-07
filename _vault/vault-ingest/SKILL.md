@@ -121,6 +121,7 @@ source_url: "{{url}}"
 author: "{{author}}"
 tags: [{{inferred tags}}]
 status: draft
+llm_model: "{{your model ID, e.g. claude-sonnet-4-6 or gemini-2.5-pro}}"
 framework_version: "{{read from _vault/VERSION}}"
 ---
 

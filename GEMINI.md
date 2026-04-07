@@ -1,6 +1,6 @@
-# Seed Vault — Claude Instructions
+# Seed Vault — Gemini Instructions
 
-This is a **Seed Vault** wiki. Claude is the primary author of all wiki content. The user drops source material into `raw/` and directs Claude to build, maintain, and query the wiki. Do not wait for the user to manage wiki files — Claude owns that responsibility.
+This is a **Seed Vault** wiki. Gemini is the primary author of all wiki content. The user drops source material into `raw/` and directs Gemini to build, maintain, and query the wiki. Do not wait for the user to manage wiki files — Gemini owns that responsibility.
 
 ---
 
@@ -8,17 +8,17 @@ This is a **Seed Vault** wiki. Claude is the primary author of all wiki content.
 
 | Directory | Purpose | Who writes |
 |-----------|---------|------------|
-| `raw/` | Source documents — articles, PDFs converted to .md, web clips | User (Claude never modifies) |
-| `wiki/` | All compiled wiki articles | Claude only |
-| `wiki/_index.md` | Master index of every article in the wiki | Deterministic engine + Claude |
+| `raw/` | Source documents — articles, PDFs converted to .md, web clips | User (Gemini never modifies) |
+| `wiki/` | All compiled wiki articles | Gemini only |
+| `wiki/_index.md` | Master index of every article in the wiki | Deterministic engine + Gemini |
 | `wiki/_index.base` | Obsidian Bases view of the index (auto-populated from frontmatter) | Do not modify |
 | `wiki/_log.md` | Append-only operation log (pipeline, ingest, lint events) | Deterministic engines |
 | `wiki/_migration-log.md` | Record of applied framework migrations | Do not modify (managed by vault-migrate) |
-| `wiki/concepts/` | Concept articles synthesized from multiple sources | Claude |
-| `wiki/sources/` | One summary per file in `raw/` | Claude |
-| `wiki/topics/` | Topic hub pages that cluster related concepts | Claude |
-| `viz/` | Self-contained HTML visualizations | Claude |
-| `outputs/` | Q&A reports, lint reports, one-off outputs (gitignored — ephemeral) | Claude |
+| `wiki/concepts/` | Concept articles synthesized from multiple sources | Gemini |
+| `wiki/sources/` | One summary per file in `raw/` | Gemini |
+| `wiki/topics/` | Topic hub pages that cluster related concepts | Gemini |
+| `viz/` | Self-contained HTML visualizations | Gemini |
+| `outputs/` | Q&A reports, lint reports, one-off outputs (gitignored — ephemeral) | Gemini |
 | `_templates/` | Obsidian article templates | Do not modify |
 | `_vault/` | Skill definitions, deterministic engines, migrations (installed via install.sh) | Do not modify |
 | `_vault/lib/` | Python engines for deterministic operations (lint, digest, verify, etc.) | Do not modify |
@@ -27,7 +27,7 @@ This is a **Seed Vault** wiki. Claude is the primary author of all wiki content.
 
 ## Architecture: Deterministic-First
 
-The vault follows a **deterministic-first** pattern. Each operation runs a Python engine first (structural analysis, file conversion, claim extraction), then Claude handles what machines can't (synthesis, semantic verification, article writing).
+The vault follows a **deterministic-first** pattern. Each operation runs a Python engine first (structural analysis, file conversion, claim extraction), then Gemini handles what machines can't (synthesis, semantic verification, article writing).
 
 ### Three-layer architecture:
 1. **Raw sources** (`raw/`): Immutable, user-curated
@@ -38,12 +38,13 @@ The vault follows a **deterministic-first** pattern. Each operation runs a Pytho
 - **uv** — Python dependency management (`uv sync` to install)
 - **qmd** — Search indexing (`npm install -g @tobilu/qmd`)
 - **pandoc** — Optional, for PDF/DOCX conversion
+- **gemini** — Gemini CLI (`npm install -g @google/gemini-cli` or `pip install gemini-cli`)
 
 ---
 
 ## Article Frontmatter (REQUIRED on every wiki file)
 
-Every file Claude writes in `wiki/` MUST begin with this frontmatter:
+Every file Gemini writes in `wiki/` MUST begin with this frontmatter:
 
 ```yaml
 ---
@@ -54,7 +55,7 @@ updated: YYYY-MM-DD
 sources: ["[[Source Name]]", "[[Another Source]]"]
 tags: [topic/subtopic, another-tag]
 status: draft | reviewed | verified
-llm_model: "claude-sonnet-4-6"
+llm_model: "gemini-2.5-pro"
 framework_version: "2.0.0"
 ---
 ```
@@ -63,7 +64,7 @@ framework_version: "2.0.0"
 - `sources` must use `[[wikilinks]]` — these create graph edges to source summaries
 - `tags` should be hierarchical: `#biology/genetics`, `#method/sequencing`
 - Update `updated:` every time you modify an article
-- `llm_model` — set to the Claude model ID from your session context (e.g. `claude-sonnet-4-6`, `claude-opus-4-6`, `claude-haiku-4-5`). This records which model wrote or last significantly updated the article.
+- `llm_model` — set to the Gemini model you are running (e.g. `gemini-2.5-pro`, `gemini-2.5-flash`). Check `gemini --version` or your session context to confirm the exact model name.
 - `framework_version` tracks which framework version wrote this article — read from `_vault/VERSION` at write time
 
 ---
@@ -145,7 +146,7 @@ Deterministic engines append to this log automatically. The pipeline reads it to
 
 ## Available Skills
 
-Ten skills power this vault. They are installed as project-local skills in `.claude/skills/` by `install.sh` and auto-loaded when you open this directory. That directory is gitignored — the actual skill content lives in `_vault/vault-*/SKILL.md` which is tracked. Invoke them by describing what you want:
+Ten skills power this vault. They are loaded from `.gemini/skills/` at the vault root (generated by `install.sh`). Invoke them by describing what you want:
 
 | Skill | When to use |
 |-------|------------|
@@ -177,6 +178,35 @@ Ten skills power this vault. They are installed as project-local skills in `.cla
 
 ---
 
+## Gemini-Specific Notes
+
+### Model identification
+Always set the `llm_model` frontmatter field on every article you write or significantly update. Use your exact model name, e.g.:
+- `gemini-2.5-pro` (default / recommended)
+- `gemini-2.5-flash`
+- `gemini-2.0-flash`
+
+Run `gemini --version` if unsure which model is active.
+
+### Clean-context verification (vault-verify)
+The `vault-verify` skill calls for a clean-context subagent. In Gemini CLI, spawn one by running:
+```bash
+gemini -p "$(cat <<'EOF'
+You are a fact-checker with NO prior context...
+[paste article + verify.py output + raw sources]
+EOF
+)"
+```
+Or open a fresh Gemini CLI session with no prior conversation history.
+
+### Tool availability
+All Bash, Read, Write, Edit, Glob, Grep, WebFetch, and WebSearch tools map to the equivalent Gemini CLI built-in tools. The Python engines in `_vault/lib/` are invoked via `uv run python _vault/lib/<engine>.py`.
+
+### Skills discovery
+Skills are loaded from `.gemini/skills/` at the workspace root (hard-linked to `_vault/vault-*/SKILL.md` by `install.sh`). Run `bash _vault/install.sh` once after cloning to set up `.gemini/skills/` and all hard links. The directory is gitignored — skill content lives in `_vault/` which is tracked.
+
+---
+
 ## Naming Conventions
 
 - **Concept articles**: `wiki/concepts/concept-name.md` (kebab-case)
@@ -193,17 +223,17 @@ File names use kebab-case.
 
 ## MCP Integrations (Optional)
 
-These MCP servers enhance vault capabilities when installed in Claude Code. None are required — all core skills work without them.
+These MCP servers enhance vault capabilities when installed in Gemini CLI. None are required — all core skills work without them.
 
 | MCP Server | Benefit | Install |
 |------------|---------|---------|
-| **Brave Search** or **Tavily** | Richer web search in `vault-verify` and `vault-qa` beyond the default WebSearch tool | `claude mcp add brave-search` |
-| **Zotero** | Sync your academic reference library — auto-ingest tagged references via `vault-ingest` | Community MCP |
-| **GitHub** | Ingest README/docs/wikis from public repos as sources | `claude mcp add github` |
-| **Obsidian** | Direct vault read/write without the Claude Code CLI (useful for remote sessions) | Community MCP |
-| **PubMed / Semantic Scholar** | Native academic paper lookup in `vault-verify` (free API also works without MCP — see skill) | Community MCP |
+| **Brave Search** or **Tavily** | Richer web search in `vault-verify` and `vault-qa` | Add to `.gemini/settings.json` |
+| **Zotero** | Sync your academic reference library | Community MCP |
+| **GitHub** | Ingest README/docs/wikis from public repos as sources | Community MCP |
+| **Obsidian** | Direct vault read/write without the CLI | Community MCP |
+| **PubMed / Semantic Scholar** | Native academic paper lookup in `vault-verify` | Community MCP |
 
-Even without MCP servers, `vault-verify` uses free public APIs (Semantic Scholar, CrossRef, Wayback Machine) for external verification. MCP servers add speed and depth.
+Even without MCP servers, `vault-verify` uses free public APIs (Semantic Scholar, CrossRef, Wayback Machine) for external verification.
 
 ---
 

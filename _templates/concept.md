@@ -7,6 +7,8 @@ sources: []
 tags: []
 status: draft
 aliases: []
+llm_model: ""
+framework_version: ""
 ---
 
 # {{title}}
