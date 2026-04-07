@@ -1,6 +1,6 @@
 # Seed Vault
 
-A portable, Claude-powered personal knowledge wiki framework. Use this repo as a **GitHub template** — each wiki is a fresh instance that lives entirely on your local machine. Your raw sources, compiled articles, and visualizations are never pushed to GitHub.
+A portable, LLM-powered personal knowledge wiki framework. Use this repo as a **GitHub template** — each wiki is a fresh instance that lives entirely on your local machine. Your raw sources, compiled articles, and visualizations are never pushed to GitHub.
 
 ---
 
@@ -66,68 +66,42 @@ git remote add upstream https://github.com/you/seed-vault
 git fetch upstream
 git merge upstream/main --allow-unrelated-histories
 
-# Re-sync dependencies and re-install skills (Claude symlinks + Gemini hard links)
+# Re-sync dependencies and re-install skills
 uv sync
 bash _vault/install.sh
-# /reload-plugins         # in Claude Code
 
 # If the framework version changed, migrate existing articles
 # Run vault-migrate in Claude Code or Gemini CLI
 ```
 
+See [docs/Updating-Your-Vault.md](docs/Updating-Your-Vault.md) for the full update guide, including migration steps and merge conflict handling.
+
 ---
 
 ## LLM Frontend Support
 
-Seed Vault works with **Claude Code** (default) or **Gemini CLI** as the frontend LLM. Both use the same skills, Python engines, and wiki format.
-
-| | Claude Code | Gemini CLI |
-|--|-------------|------------|
-| Instructions file | `CLAUDE.md` | `GEMINI.md` |
-| Skills location | `.claude/skills/` (project-local) | `.gemini/skills/` (project-local) |
-| Skills mechanism | Relative symlinks → `_vault/vault-*/SKILL.md` | Hard links from `_vault/vault-*/SKILL.md` |
-| Skills tracked in git | ❌ gitignored (content lives in `_vault/`) | ❌ gitignored (content lives in `_vault/`) |
-| Setup command | `bash _vault/install.sh` — auto-loaded, no reload | `bash _vault/install.sh` then `gemini` |
-| Article `llm_model` | `claude-sonnet-4-6`, `claude-opus-4-6`, … | `gemini-2.5-pro`, `gemini-2.5-flash`, … |
-
-`install.sh` handles both in one run — Claude symlinks go to `~/.claude/skills/`, Gemini hard links land in `skills/` at the vault root.
+Seed Vault works with **Claude Code** or **Gemini CLI** as the LLM frontend. Both use the same skills, Python engines, and wiki format. See [docs/LLM-Frontends.md](docs/LLM-Frontends.md) for a full comparison.
 
 ---
 
 ## How It Works
 
 ```
-raw/          ← you drop source files here (PDFs, web clips, text)
-  └── article.pdf, webpage.md, paper.pdf
-
-_vault/lib/   ← deterministic Python engines
-  ├── convert.py     file conversion (PDF/HTML/DOCX → MD)
-  ├── lint.py        9 structural health checks
-  ├── digest.py      statistics generator
-  ├── verify.py      claim extraction & source matching
-  ├── index.py       index generator + qmd rebuild
-  └── pipeline.py    orchestration (detect new/changed files)
-
-wiki/         ← Claude writes everything here
-  ├── _index.md        master index (deterministically generated)
-  ├── _log.md          append-only operation log
-  ├── concepts/        synthesized concept articles
-  ├── sources/         one summary per raw/ file
-  └── topics/          topic hub pages (cluster nodes for graph view)
-
-viz/          ← self-contained HTML visualizations
-outputs/      ← Q&A reports, lint reports, one-offs
+raw/      ← you drop sources here
+wiki/     ← your LLM writes everything here (concepts, sources, topics)
+viz/      ← self-contained HTML visualizations
+outputs/  ← Q&A reports, lint reports, one-offs
 ```
 
-Claude is the primary author of all files in `wiki/`, `viz/`, and `outputs/`. You never edit those directly — you direct Claude. Deterministic engines handle structural tasks (indexing, linting, claim extraction), while Claude handles synthesis and reasoning.
+The LLM is the primary author of all files in `wiki/`, `viz/`, and `outputs/`. Deterministic Python engines in `_vault/lib/` handle structural tasks (indexing, linting, claim extraction) while the LLM handles synthesis and reasoning. See [docs/Architecture.md](docs/Architecture.md) for the full directory reference and engine breakdown.
 
 ---
 
 ## Skills
 
 <!-- SKILLS:START -->
-| Skill Name | Say this... | Claude will... |
-|------------|-------------|----------------|
+| Skill Name | Say this... | The LLM will... |
+|------------|-------------|-----------------|
 | `vault-ingest` | "Ingest raw/paper.pdf" / "import this URL" | Run convert.py for file conversion, then create source summary in wiki/sources/; supports YouTube transcripts and Wayback Machine fallback for dead URLs |
 | `vault-compile` | "Compile the wiki" / "write an article about X" | Build interconnected concept articles and topic hub pages from raw sources, with Recommended Reading Order on hub pages |
 | `vault-pipeline` | "Process everything" / "run the pipeline" | Run pipeline.py to detect changes, then orchestrate ingest → compile → index → verify (clean-context subagent) → lint |
@@ -142,73 +116,9 @@ Claude is the primary author of all files in `wiki/`, `viz/`, and `outputs/`. Yo
 
 ---
 
-## Article Frontmatter
-
-Every wiki article includes a `llm_model` field that records which model wrote or last significantly updated it:
-
-```yaml
-llm_model: "claude-sonnet-4-6"   # or "gemini-2.5-pro", "claude-opus-4-6", etc.
-```
-
-This makes it easy to audit which model produced which content, and to re-verify or re-compile articles after switching models.
-
----
-
 ## Obsidian Setup
 
-This vault is pre-configured for Obsidian:
-- **Graph view**: Concepts (blue), Sources (green), Topics (purple), Visualizations (orange)
-- **Templates**: stored in `_templates/`
-- **Backlinks** and **Properties**: enabled
-
-Open as a vault: Obsidian → File → Open Vault → select this folder.
-
-### Viewing Visualizations
-
-HTML visualizations in `viz/` are embedded in wrapper `.md` pages via `<iframe>`. To view them in Obsidian:
-1. Install the **HTML Reader** community plugin, OR
-2. Open the `.html` file from Obsidian's file explorer (opens in browser)
-3. Mermaid diagrams render natively — no plugin needed
-
----
-
-## Directory Reference
-
-```
-your-wiki/
-├── CLAUDE.md            Claude's operating instructions (auto-loaded)
-├── GEMINI.md            Gemini CLI's operating instructions (auto-loaded)
-├── README.md            This file
-├── pyproject.toml       Python dependencies (managed by uv)
-├── .claude/             Claude Code project config
-│   └── skills/          Project-local skill symlinks → _vault/ (gitignored)
-├── .gemini/             Gemini CLI project config
-│   └── skills/          Project-local skill hard links → _vault/ (gitignored)
-├── _vault/              Skill definitions & engines (tracked in git)
-│   ├── VERSION          Framework version (2.0.0)
-│   ├── install.sh       Run once after cloning
-│   ├── migrate.py       Wiki migration runner
-│   ├── migrations/      Migration specs (JSON)
-│   ├── lib/             Deterministic Python engines
-│   ├── vault-ingest/    Raw source → markdown converter
-│   ├── vault-compile/   Wiki article builder
-│   ├── vault-pipeline/  Full pipeline orchestrator
-│   ├── vault-index/     Index & qmd rebuilder
-│   ├── vault-qa/        Question answering (qmd + LLM)
-│   ├── vault-verify/    Fact checker (deterministic + clean-context subagent)
-│   ├── vault-lint/      Health checker (9 deterministic checks + LLM review)
-│   ├── vault-digest/    Status briefing (fully deterministic)
-│   ├── vault-migrate/   Framework migration handler
-│   └── vault-visualize/ HTML visualization generator
-├── skills/              Gemini CLI skill hard links — gitignored, generated by install.sh
-├── _templates/          Obsidian article templates (tracked)
-├── .obsidian/           Obsidian vault config (tracked)
-├── raw/                 Source documents — gitignored, local only
-├── wiki/                Compiled wiki — gitignored, local only
-│   └── _index.base      Obsidian Bases view of the index (auto-populated)
-├── viz/                 Visualizations — gitignored, local only
-└── outputs/             Reports & outputs — gitignored, local only
-```
+Open as a vault: Obsidian → File → Open Vault → select this folder. The vault is pre-configured with graph view colors (Concepts: blue, Sources: green, Topics: purple, Viz: orange), templates in `_templates/`, and backlinks enabled. See [docs/Obsidian-Setup.md](docs/Obsidian-Setup.md) for plugin recommendations and visualization viewing instructions.
 
 ---
 
