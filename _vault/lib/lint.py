@@ -118,7 +118,7 @@ def _all_wiki_files() -> list[Path]:
 
 def _content_wiki_files() -> list[Path]:
     """Wiki files that are not meta/index files."""
-    skip_names = {"_index.md", "_catalog.md", "_index.base", "_catalog.base", "_migration-log.md"}
+    skip_names = {"_index.md", "_catalog.md", "_index.base", "_catalog.base", "_migration-log.md", "_log.md"}
     return [f for f in _all_wiki_files() if f.name not in skip_names]
 
 
@@ -188,7 +188,7 @@ def check_broken_wikilinks() -> dict:
 # ---------------------------------------------------------------------------
 
 def check_orphan_pages() -> dict:
-    skip_names = {"_index.md", "_catalog.md", "_migration-log.md"}
+    skip_names = {"_index.md", "_catalog.md", "_migration-log.md", "_log.md"}
     all_files = _all_wiki_files()
     content_files = [f for f in all_files if f.name not in skip_names]
 
@@ -381,7 +381,7 @@ def check_index_sync() -> dict:
 # ---------------------------------------------------------------------------
 
 def check_raw_coverage() -> dict:
-    """raw/foo.md should have wiki/sources/summary-foo.md."""
+    """Every file in raw/ should have a source summary that references it via original_source:."""
     issues: list[str] = []
 
     if not RAW_DIR.exists():
@@ -392,18 +392,24 @@ def check_raw_coverage() -> dict:
             "auto_fixable": False,
         }
 
+    # Build the set of raw file paths referenced by any summary's original_source field.
+    # Summaries record: original_source: "[[raw/kebab-name]]"
+    # We normalise to just the stem for matching.
+    covered_stems: set[str] = set()
     sources_dir = WIKI_DIR / "sources"
-    existing_summaries: set[str] = set()
     if sources_dir.exists():
-        for f in sources_dir.rglob("*.md"):
-            existing_summaries.add(f.stem.lower())
+        for summary in sources_dir.rglob("*.md"):
+            fm = parse_file(summary)
+            orig = str(fm.get("original_source", "") or "")
+            # Extract the path part from [[raw/some-name]] or [[raw/some-name.md]]
+            m = re.search(r"\[\[raw/([^\]#|]+)", orig)
+            if m:
+                covered_stems.add(Path(m.group(1)).stem.lower())
 
     for raw_file in sorted(RAW_DIR.rglob("*.md")):
-        stem = raw_file.stem
-        expected_stem = f"summary-{stem}".lower()
-        if expected_stem not in existing_summaries:
+        if raw_file.stem.lower() not in covered_stems:
             issues.append(
-                f"raw/{raw_file.relative_to(RAW_DIR)}: no wiki/sources/summary-{stem}.md found"
+                f"raw/{raw_file.relative_to(RAW_DIR)}: no source summary references this file"
             )
 
     return {
