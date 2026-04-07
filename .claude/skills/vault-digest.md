@@ -1,0 +1,1 @@
+../../_vault/vault-digest/SKILL.md

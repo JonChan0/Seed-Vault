@@ -1,0 +1,1 @@
+../../_vault/vault-lint/SKILL.md

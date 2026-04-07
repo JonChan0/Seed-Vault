@@ -1,0 +1,1 @@
+../../_vault/vault-pipeline/SKILL.md

@@ -145,7 +145,7 @@ Deterministic engines append to this log automatically. The pipeline reads it to
 
 ## Available Skills
 
-Ten skills power this vault. Invoke them by describing what you want:
+Ten skills power this vault. They are installed as project-local skills in `.claude/skills/` by `install.sh` and auto-loaded when you open this directory. Invoke them by describing what you want:
 
 | Skill | When to use |
 |-------|------------|
