@@ -10,15 +10,15 @@ desktop.ini
 .obsidian/themes/
 .obsidian/snippets/
 
-# Claude Code — project-local settings (user-specific, not tracked)
-# .claude/skills/ IS tracked — relative symlinks to _vault/vault-*/SKILL.md
+# Claude Code — project-local settings and generated skill links
+# Skills are already tracked in _vault/vault-*/SKILL.md — no need to track the links too
+.claude/skills/
 .claude/settings.local.json
 .claude/todos.json
 
-# Gemini CLI skills directory — hard-linked from _vault/vault-*/SKILL.md by install.sh
-# Content is already tracked in _vault/; this directory is derived
-# Leading / anchors the pattern to the repo root so .claude/skills/ is unaffected
-/skills/
+# Gemini CLI — project-local settings and generated skill links
+# Skills are already tracked in _vault/vault-*/SKILL.md — no need to track the links too
+.gemini/skills/
 
 # Raw sources — often large or sensitive; opt-in per wiki instance
 # Uncomment to track raw sources in git:

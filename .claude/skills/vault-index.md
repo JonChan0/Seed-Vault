@@ -1,1 +1,0 @@
-../../_vault/vault-index/SKILL.md

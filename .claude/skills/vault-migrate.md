@@ -1,1 +1,0 @@
-../../_vault/vault-migrate/SKILL.md

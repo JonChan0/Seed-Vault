@@ -144,11 +144,11 @@ fi
 echo ""
 # ─────────────────────────────────────────────────────────────────────────────
 
-# ── Gemini CLI: workspace skills (skills/) with hard links ────────────────────
-echo "Setting up Gemini CLI skills directory (skills/)..."
+# ── Gemini CLI: workspace skills (.gemini/skills/) with hard links ────────────
+echo "Setting up Gemini CLI skills directory (.gemini/skills/)..."
 echo ""
 
-GEMINI_SKILLS_DIR="$VAULT_ROOT/skills"
+GEMINI_SKILLS_DIR="$VAULT_ROOT/.gemini/skills"
 mkdir -p "$GEMINI_SKILLS_DIR"
 
 gemini_installed=0
@@ -176,7 +176,7 @@ for skill_dir in "$SCRIPT_DIR"/vault-*/; do
 
     # Hard link first; fall back to symlink if cross-filesystem
     if ln "$skill_md" "$target" 2>/dev/null; then
-        echo "  ✓ Hard-linked: $skill_name → skills/$skill_name/SKILL.md"
+        echo "  ✓ Hard-linked: $skill_name → .gemini/skills/$skill_name/SKILL.md"
     else
         ln -sf "$skill_md" "$target"
         echo "  ~ Symlinked:   $skill_name (cross-filesystem fallback)"
@@ -185,7 +185,7 @@ for skill_dir in "$SCRIPT_DIR"/vault-*/; do
 done
 
 echo ""
-echo "Gemini skills ready in skills/ ($gemini_installed installed/updated)."
+echo "Gemini skills ready in .gemini/skills/ ($gemini_installed installed/updated)."
 
 if command -v gemini &>/dev/null; then
     echo "✓ gemini CLI found: $(gemini --version 2>/dev/null | head -1)"
@@ -193,5 +193,5 @@ else
     echo "ℹ gemini CLI not found (optional — install: npm install -g @google/gemini-cli)"
 fi
 echo ""
-echo "Gemini CLI users: run 'gemini' in this directory — GEMINI.md and skills/ are auto-loaded."
+echo "Gemini CLI users: run 'gemini' in this directory — GEMINI.md and .gemini/skills/ are auto-loaded."
 # ─────────────────────────────────────────────────────────────────────────────
