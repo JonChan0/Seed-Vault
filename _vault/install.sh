@@ -116,11 +116,13 @@ else
     echo "  qmd provides fast search indexing for vault-qa and vault-index"
 fi
 
-# Check for pandoc (optional)
+# Check for pandoc (optional — pypandoc wraps the pandoc binary)
 if command -v pandoc &>/dev/null; then
     echo "✓ pandoc found: $(pandoc --version | head -1)"
+    echo "  pypandoc (Python wrapper) will use this installation"
 else
-    echo "ℹ pandoc not found (optional — needed for PDF/DOCX conversion in vault-ingest)"
+    echo "ℹ pandoc binary not found (optional — needed for PDF/DOCX conversion in vault-ingest)"
+    echo "  pypandoc can download it automatically: python -c \"import pypandoc; pypandoc.download_pandoc()\""
 fi
 
 echo ""

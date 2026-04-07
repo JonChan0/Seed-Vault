@@ -89,7 +89,7 @@ your-wiki/
 |------------|---------|---------|
 | **uv** | Python dependency management | `pip install uv` or via installer |
 | **qmd** | BM25 + vector search index | `npm install -g @tobilu/qmd` |
-| **pandoc** | Optional — PDF/DOCX conversion | `brew install pandoc` or system package |
+| **pandoc** | Optional — PDF/DOCX conversion (via `pypandoc`) | Auto-installed by pypandoc, or `brew install pandoc` |
 
 ## See Also
 
