@@ -1,9 +1,9 @@
 ---
-title: "Summary: {{source_title}}"
+title: "Summary - {{source_title}}"
 type: source-summary
 created: {{date}}
 updated: {{date}}
-original_source: "[[raw/{{filename}}]]"
+sources: ["[[raw/{{filename}}]]"]
 source_url: ""
 author: ""
 tags: []

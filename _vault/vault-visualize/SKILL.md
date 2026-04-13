@@ -65,7 +65,7 @@ Write `wiki/concepts/viz-{{name}}.md` (or `wiki/topics/viz-{{name}}.md`):
 
 ```markdown
 ---
-title: "Viz: {{Title}}"
+title: "Viz - {{Title}}"
 type: visualization
 created: {{today}}
 updated: {{today}}
@@ -94,11 +94,11 @@ framework_version: "{{read from _vault/VERSION}}"
 
 ## Data Sources
 - [[Concept Name]]
-- [[Summary: Source Title]]
+- [[Summary - Source Title]]
 
 ## See Also
 - [[Related Concept]]
-- [[Topic: Parent Topic]]
+- [[Topic - Parent Topic]]
 ```
 
 ---
@@ -112,7 +112,7 @@ uv run python _vault/lib/index.py
 
 Or manually add to `wiki/_index.md` under `## Visualizations`:
 ```
-- [[Viz: {{Title}}]] — {{one-line description}}
+- [[Viz - {{Title}}]] — {{one-line description}}
 ```
 
 ---

@@ -66,7 +66,7 @@ title: "{{Concept Name}}"
 type: concept
 created: {{today}}
 updated: {{today}}
-sources: ["[[Summary: Source Title]]", "[[Summary: Another Source]]"]
+sources: ["[[Summary - Source Title]]", "[[Summary - Another Source]]"]
 tags: [{{topic/subtopic}}, {{another-tag}}]
 status: draft
 aliases: ["{{alternate name}}", "{{abbreviation}}"]
@@ -83,7 +83,7 @@ web_sources: ["{{url-1}}", "{{url-2}}"]
 ## Key Details
 
 ### {{Aspect 1}}
-*(Detailed explanation with inline citations: "According to [[Summary: Source Title]], ..." and web-verified claims marked [^web-N])*
+*(Detailed explanation with inline citations: "According to [[Summary - Source Title]], ..." and web-verified claims marked [^web-N])*
 
 ### {{Aspect 2}}
 ...
@@ -98,15 +98,15 @@ web_sources: ["{{url-1}}", "{{url-2}}"]
 - [[Related Concept B]] — *(one-line relationship description)*
 
 ### Part of Topics
-- [[Topic: Parent Topic]]
+- [[Topic - Parent Topic]]
 
 ### See Also
 - [[Another Concept]]
 
 ## Source Material
 *(Sources that inform this article)*
-- [[Summary: Source Title]] — *(what this source contributes)*
-- [[Summary: Another Source]] — *(what this source contributes)*
+- [[Summary - Source Title]] — *(what this source contributes)*
+- [[Summary - Another Source]] — *(what this source contributes)*
 
 ## External References
 *(Web sources consulted during compilation — numbered to match [^web-N] inline markers)*
@@ -132,7 +132,7 @@ Write `wiki/topics/{{topic-name}}.md`:
 
 ```markdown
 ---
-title: "Topic: {{Topic Name}}"
+title: "Topic - {{Topic Name}}"
 type: topic
 created: {{today}}
 updated: {{today}}
@@ -144,7 +144,7 @@ framework_version: "{{read from _vault/VERSION}}"
 web_sources: ["{{url-1}}", "{{url-2}}"]
 ---
 
-# Topic: {{Topic Name}}
+# Topic - {{Topic Name}}
 
 ## Overview
 *(What is this topic area? What questions does it address? Web-verified scope claims marked [^web-N])*
@@ -167,14 +167,14 @@ web_sources: ["{{url-1}}", "{{url-2}}"]
 
 ## Key Sources
 *(Primary sources in this topic area)*
-- [[Summary: Source Title]]
+- [[Summary - Source Title]]
 
 ## Open Questions
 *(What's unknown, debated, or worth exploring further?)*
 - {{At least one open question — never leave this empty}}
 
 ## See Also
-- [[Topic: Related Topic]]
+- [[Topic - Related Topic]]
 
 ## External References
 *(Web sources consulted during compilation)*
@@ -192,7 +192,7 @@ When a new source is ingested that adds to an existing concept:
 3. Use Edit to:
    - Add new information to the relevant sections
    - Add the new source to the `sources:` frontmatter
-   - Add `[[Summary: New Source]]` to the "Source Material" section
+   - Add `[[Summary - New Source]]` to the "Source Material" section
    - Update `updated:` date
 4. Update the source summary to backlink to this concept
 

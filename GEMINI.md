@@ -84,7 +84,7 @@ framework_version: "2.0.0"
 ## See Also
 - [[Related Concept A]]
 - [[Related Concept B]]
-- [[Topic: Parent Topic]]
+- [[Topic - Parent Topic]]
 ```
 
 ---
@@ -115,13 +115,13 @@ Or manually append the entry to `wiki/_index.md` if doing a single article.
 - [[Concept Name]] — tags: tag1, tag2
 
 ## Source Summaries
-- [[Summary: Source Title]] — tags: tag1, tag2
+- [[Summary - Source Title]] — tags: tag1, tag2
 
 ## Topics
-- [[Topic: Topic Name]] — tags: tag1, tag2
+- [[Topic - Topic Name]] — tags: tag1, tag2
 
 ## Visualizations
-- [[Viz: Visualization Name]] — tags: tag1, tag2
+- [[Viz - Visualization Name]] — tags: tag1, tag2
 
 ---
 *Last updated: YYYY-MM-DD | Total articles: N*

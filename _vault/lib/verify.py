@@ -181,7 +181,7 @@ def extract_claims(body: str) -> list[dict[str, str]]:
 
 def _wikilink_to_source_path(wikilink: str) -> Path | None:
     """
-    Convert a wikilink like '[[Summary: Foo Bar]]' to the expected path
+    Convert a wikilink like '[[Summary - Foo Bar]]' to the expected path
     wiki/sources/summary-foo-bar.md, and return it if it exists.
     """
     # Strip [[ and ]] if present

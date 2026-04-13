@@ -485,8 +485,8 @@ def check_missing_topic_hubs() -> dict:
             fm = parse_file(f)
             title = fm.get("title", "")
             if title:
-                # Strip "Topic: " prefix if present
-                hub_name = re.sub(r"^topic:\s*", "", title, flags=re.IGNORECASE).lower()
+                # Strip "Topic - " prefix if present
+                hub_name = re.sub(r"^topic\s*-\s*", "", title, flags=re.IGNORECASE).lower()
                 existing_hub_slugs.add(hub_name)
                 existing_hub_slugs.add(title.lower())
 
@@ -515,7 +515,7 @@ def check_missing_topic_hubs() -> dict:
 # ---------------------------------------------------------------------------
 
 def check_unhubbed_concepts() -> dict:
-    """Concepts with no [[Topic: ...]] wikilink reference in their content."""
+    """Concepts with no [[Topic - ...]] wikilink reference in their content."""
     concepts_dir = WIKI_DIR / "concepts"
     if not concepts_dir.exists():
         return {
@@ -525,7 +525,7 @@ def check_unhubbed_concepts() -> dict:
             "auto_fixable": False,
         }
 
-    topic_link_re = re.compile(r"\[\[Topic:", re.IGNORECASE)
+    topic_link_re = re.compile(r"\[\[Topic\s*-", re.IGNORECASE)
     issues: list[str] = []
 
     for f in sorted(concepts_dir.rglob("*.md")):
@@ -533,7 +533,7 @@ def check_unhubbed_concepts() -> dict:
         body = _strip_frontmatter(text)
         if not topic_link_re.search(body):
             issues.append(
-                f"{f.relative_to(VAULT_ROOT)}: concept has no [[Topic: ...]] wikilink"
+                f"{f.relative_to(VAULT_ROOT)}: concept has no [[Topic - ...]] wikilink"
             )
 
     return {

@@ -84,7 +84,7 @@ Add or update a `## Verification` section:
 *Last verified: {{today}} by vault-verify*
 
 ### ✅ Supported Claims
-- "{{claim}}" — confirmed by [[Summary: Source]] and source matching
+- "{{claim}}" — confirmed by [[Summary - Source]] and source matching
 
 ### ⚠️ Weakly Supported
 - "{{claim}}" — source mentions topic but doesn't confirm specific figure

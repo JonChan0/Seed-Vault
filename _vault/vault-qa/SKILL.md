@@ -58,10 +58,10 @@ Write a thorough answer using only what's in the wiki:
 ### Evidence from the Wiki
 
 **{{Sub-question or aspect}}**
-According to [[Concept Article]], ... [[Summary: Source]] adds that ...
+According to [[Concept Article]], ... [[Summary - Source]] adds that ...
 
 **{{Another aspect}}**
-[[Topic: Related Topic]] covers ... The key sources are [[Summary: X]] and [[Summary: Y]].
+[[Topic - Related Topic]] covers ... The key sources are [[Summary - X]] and [[Summary - Y]].
 
 ### Knowledge Gaps
 The wiki doesn't currently cover:
@@ -74,11 +74,11 @@ The wiki doesn't currently cover:
 
 ### Sources Consulted
 - [[Concept Name]]
-- [[Summary: Source Title]]
-- [[Topic: Topic Name]]
+- [[Summary - Source Title]]
+- [[Topic - Topic Name]]
 ```
 
-**Citation style**: Always use `[[wikilinks]]` to cite. If quoting a specific claim, write: `"quote" — [[Summary: Source]]`
+**Citation style**: Always use `[[wikilinks]]` to cite. If quoting a specific claim, write: `"quote" — [[Summary - Source]]`
 
 **Epistemic honesty**: If the wiki has conflicting information, present both sides. If information is unverified (status: draft), say so.
 

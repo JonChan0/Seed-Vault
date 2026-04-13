@@ -75,10 +75,31 @@ For **plain text**:
 
 ## Step 3: Determine the File Name
 
-Create a kebab-case file name from the title:
+Create an Obsidian-safe kebab-case file name from the title:
 - "The CRISPR Revolution in Gene Editing" → `crispr-revolution-gene-editing`
 - Strip articles (the, a, an) from the start
 - Max 6 words
+
+### Obsidian-safe sanitization (apply before kebab conversion)
+Obsidian forbids these characters in file names (they also break wikilinks): `/ \ < > : " | ? * # ^ [ ]`
+
+Strip or replace them from the title before building the file name **and** from any `[[wikilink]]` text that references the file:
+- `:` → remove (Windows filename invalid; breaks `Summary:` / `Topic:` prefix convention — use `Summary -` / `Topic -` instead)
+- `#` → remove (Obsidian heading anchor marker)
+- `^` → remove (Obsidian block reference marker)
+- `[` `]` → remove (breaks wikilink syntax)
+- `|` → remove (wikilink alias separator)
+- `*` `"` `<` `>` `\` `?` `/` → remove (OS filename invalid)
+- `,` `.` → remove (noise in kebab names)
+
+`$`, `&`, `'` (apostrophes) are **valid** in Obsidian filenames and wikilinks — do not strip them.
+
+The sanitized name is used for **both** the file name on disk and any `[[wikilink]]` that references it. The full original title may appear in the frontmatter `title:` field and body text.
+
+> Example: "Lilly Inks R&D Collab Worth Up to $2.75B" →
+> file: `lilly-inks-rd-collab-worth-up-to-275b.md`
+> wikilink: `[[raw/lilly-inks-rd-collab-worth-up-to-275b]]`
+> title frontmatter: `"Lilly Inks R&D Collab Worth Up to $2.75B"` ✓
 
 Check if `raw/{{name}}.md` already exists. If so, ask the user whether to overwrite or create `{{name}}-2.md`.
 
@@ -112,11 +133,11 @@ Write `wiki/sources/summary-{{name}}.md`:
 
 ```markdown
 ---
-title: "Summary: {{Full Title}}"
+title: "Summary - {{Full Title}}"
 type: source-summary
 created: {{today}}
 updated: {{today}}
-original_source: "[[raw/{{name}}]]"
+sources: ["[[raw/{{name}}]]"]
 source_url: "{{url}}"
 author: "{{author}}"
 tags: [{{inferred tags}}]

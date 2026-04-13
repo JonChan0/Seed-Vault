@@ -24,7 +24,7 @@ This runs 9 checks:
 6. **Raw coverage** — raw files with no source summary (info)
 7. **Tag frequency** — singleton tags that may be typos (info)
 8. **Missing topic hubs** — 3+ concepts share a tag with no hub page (info)
-9. **Unhubbed concepts** — concepts with no `[[Topic:` reference (warning)
+9. **Unhubbed concepts** — concepts with no `[[Topic -` reference (warning)
 
 Read the JSON output.
 
