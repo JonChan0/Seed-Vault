@@ -195,39 +195,56 @@ def _wikilink_to_source_path(wikilink: str) -> Path | None:
 def _find_raw_file_for_source(source_path: Path) -> Path | None:
     """
     Read a source summary's frontmatter to discover which raw file it covers.
-    Checks 'sources', 'raw_file', 'source_file' frontmatter fields,
-    then falls back to stem-matching in raw/.
+
+    Resolution order:
+      1. original_source — the field vault-ingest actually writes (e.g. "[[raw/name]]")
+      2. raw_file / source_file — legacy explicit fields
+      3. sources — if any entry looks like a raw/ path
+      4. Stem-based match — summary-foo → raw/foo.*
     """
     fm = parse_file(source_path)
 
-    # 1. Explicit raw_file or source_file field
+    # 1. original_source — written by vault-ingest as "[[raw/name]]"
+    orig = fm.get("original_source")
+    if orig:
+        # Strip wikilink brackets: [[raw/foo]] → raw/foo
+        orig_str = re.sub(r"^\[\[|\]\]$", "", str(orig)).strip()
+        # Try with and without .md extension
+        for suffix in ("", ".md"):
+            for base in (VAULT_ROOT, RAW_DIR):
+                candidate = base / f"{orig_str}{suffix}"
+                if candidate.exists():
+                    return candidate
+            # orig_str may already be "raw/name" — try from vault root only
+            candidate = VAULT_ROOT / f"{orig_str}{suffix}"
+            if candidate.exists():
+                return candidate
+
+    # 2. Explicit raw_file or source_file field
     for field in ("raw_file", "source_file"):
         val = fm.get(field)
         if val:
             candidate = VAULT_ROOT / str(val)
             if candidate.exists():
                 return candidate
-            # Try relative to raw/
             candidate2 = RAW_DIR / str(val)
             if candidate2.exists():
                 return candidate2
 
-    # 2. sources field may point to a raw file path
+    # 3. sources field may point to a raw file path
     src_list = fm.get("sources", []) or []
     if isinstance(src_list, str):
         src_list = [src_list]
     for src in src_list:
         src_str = re.sub(r"^\[\[|\]\]$", "", str(src)).strip()
-        # If it looks like a path with an extension, try it
         if "." in Path(src_str).suffix:
             for base in (VAULT_ROOT, RAW_DIR):
                 candidate = base / src_str
                 if candidate.exists():
                     return candidate
 
-    # 3. Stem-based match in raw/: source summary is summary-foo → look for foo.*
+    # 4. Stem-based match in raw/: source summary is summary-foo → look for foo.*
     stem = source_path.stem  # e.g. "summary-climate-change"
-    # Strip leading "summary-"
     raw_stem = re.sub(r"^summary-", "", stem)
     if RAW_DIR.exists():
         for raw_file in RAW_DIR.rglob("*"):
@@ -237,32 +254,50 @@ def _find_raw_file_for_source(source_path: Path) -> Path | None:
     return None
 
 
-def resolve_sources(article_fm: dict) -> list[Path]:
+def resolve_sources(article_fm: dict) -> tuple[list[Path], list[str]]:
     """
     Given an article's frontmatter, resolve all source wikilinks to raw file
-    paths. Returns a list of existing raw (or source summary) file paths.
+    paths. Only ever returns files under raw/ — never wiki articles.
+
+    Returns:
+        (raw_paths, warnings)
+        warnings: list of human-readable strings for unresolvable sources.
+                  An empty raw_paths with non-empty warnings means the caller
+                  should direct the user to run lint.py to fix source coverage.
     """
     raw_paths: list[Path] = []
+    warnings: list[str] = []
     sources = article_fm.get("sources", []) or []
     if isinstance(sources, str):
         sources = [sources]
 
+    if not sources:
+        warnings.append(
+            "article has no sources: field in frontmatter — "
+            "run lint to check raw coverage (check: raw_coverage)"
+        )
+        return raw_paths, warnings
+
     for src in sources:
         src_str = str(src).strip()
 
-        # Resolve wikilink to source summary file
+        # Resolve wikilink to source summary, then follow it to the raw file
         summary_path = _wikilink_to_source_path(src_str)
         if summary_path:
             raw = _find_raw_file_for_source(summary_path)
             if raw and raw not in raw_paths:
                 raw_paths.append(raw)
-            # Also include the summary itself as a fallback search target
-            if summary_path not in raw_paths:
-                raw_paths.append(summary_path)
+            else:
+                warnings.append(
+                    f"source {src_str!r} resolved to {summary_path.name} "
+                    f"but no raw file could be found — "
+                    f"run lint to check raw coverage (check: raw_coverage)"
+                )
         else:
-            # Wikilink didn't resolve to a summary — try raw/ stem match
+            # Wikilink didn't resolve to a summary — try raw/ stem match directly
             title = re.sub(r"^\[\[|\]\]$", "", src_str).strip()
             slug = re.sub(r"[^a-z0-9]+", "-", title.lower()).strip("-")
+            found = False
             if RAW_DIR.exists():
                 for raw_file in RAW_DIR.rglob("*"):
                     if raw_file.is_file():
@@ -272,12 +307,14 @@ def resolve_sources(article_fm: dict) -> list[Path]:
                         if file_slug == slug or raw_file.stem.lower() == slug:
                             if raw_file not in raw_paths:
                                 raw_paths.append(raw_file)
+                            found = True
+            if not found:
+                warnings.append(
+                    f"source {src_str!r} could not be resolved to any raw file — "
+                    f"run lint to check broken wikilinks (check: broken_wikilinks)"
+                )
 
-    # If no sources resolved, fall back to all files in raw/
-    if not raw_paths and RAW_DIR.exists():
-        raw_paths = [f for f in RAW_DIR.rglob("*") if f.is_file()]
-
-    return raw_paths
+    return raw_paths, warnings
 
 
 # ---------------------------------------------------------------------------
@@ -409,7 +446,7 @@ def verify_article(article_path: Path) -> dict[str, Any]:
     body = _strip_frontmatter(text)
     claims = extract_claims(body)
 
-    source_files = resolve_sources(fm)
+    source_files, source_warnings = resolve_sources(fm)
 
     results: list[dict[str, Any]] = []
     for claim in claims:
@@ -435,6 +472,7 @@ def verify_article(article_path: Path) -> dict[str, Any]:
         "title": title,
         "article": str(article_path.relative_to(VAULT_ROOT)),
         "claims_found": total,
+        "source_warnings": source_warnings,
         "results": results,
         "summary": {
             "exact_matches": exact,
@@ -460,6 +498,18 @@ def _human_output(report: dict[str, Any]) -> str:
     lines: list[str] = []
     lines.append(f"# Verification Report: {report['title']}")
     lines.append("")
+
+    source_warnings = report.get("source_warnings", [])
+    if source_warnings:
+        lines.append("## Source Resolution Warnings")
+        for w in source_warnings:
+            lines.append(f"  ! {w}")
+        lines.append(
+            "  → Fix source coverage first: "
+            "uv run python _vault/lib/lint.py"
+        )
+        lines.append("")
+
     lines.append(f"## Claims Found: {report['claims_found']}")
     lines.append("")
 

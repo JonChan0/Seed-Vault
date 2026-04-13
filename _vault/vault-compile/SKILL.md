@@ -28,6 +28,30 @@ Report what you found: "Found N source summaries. X concept articles exist. Y ne
 
 ---
 
+## Web Verification Step (NEW ARTICLES ONLY)
+
+Before writing any **new** concept or topic article, run 1–3 targeted WebSearches to independently ground the synthesis. This is mandatory — do not skip it.
+
+### Search strategy
+1. Search the concept name + domain (e.g. `"CRISPR base editing mechanism"`)
+2. Search for any quantitative claims that appear in the raw sources (e.g. `"CRISPR efficiency rate 2024"`)
+3. If the concept is contested or rapidly evolving, search for the current consensus (e.g. `"CRISPR off-target effects debate 2024"`)
+
+### What to do with results
+- Collect the URLs and titles of sources that corroborate, contradict, or extend what the raw sources say
+- For each claim in the article that is **supported or qualified** by a web result: append an inline `[^web-N]` marker (numbered sequentially)
+- Add a `## External References` section at the end of the article listing each footnote
+- Populate the `web_sources:` frontmatter field with every URL consulted (even if it only confirmed the raw source was correct)
+- If a web result **contradicts** a raw source claim, flag the sentence with `[^web-N]` and note the discrepancy in the footnote: `[^web-1]: Contradicted by [Title](URL) — ...`
+
+### Flagging rules
+- `[^web-N]` markers go **inline, immediately after the claim they support** — not at the end of paragraphs
+- Every `[^web-N]` must have a matching entry in `## External References`
+- If WebSearch returns no useful results for a concept, add `web_sources: []` and a note: `> **Note:** No independent web sources found for this concept — based solely on vault raw sources.`
+- **Do not add `[^web-N]` to information that comes purely from the raw sources with no web corroboration** — that path is already covered by `[[wikilink]]` inline citations
+
+---
+
 ## Article Writing: Concept Articles
 
 For each concept that needs an article, or when the user names a specific concept:
@@ -48,6 +72,7 @@ status: draft
 aliases: ["{{alternate name}}", "{{abbreviation}}"]
 llm_model: "{{your model ID, e.g. claude-sonnet-4-6 or gemini-2.5-pro}}"
 framework_version: "{{read from _vault/VERSION}}"
+web_sources: ["{{url-1}}", "{{url-2}}"]
 ---
 
 # {{Concept Name}}
@@ -58,7 +83,7 @@ framework_version: "{{read from _vault/VERSION}}"
 ## Key Details
 
 ### {{Aspect 1}}
-*(Detailed explanation with inline citations: "According to [[Summary: Source Title]], ...")*
+*(Detailed explanation with inline citations: "According to [[Summary: Source Title]], ..." and web-verified claims marked [^web-N])*
 
 ### {{Aspect 2}}
 ...
@@ -82,6 +107,11 @@ framework_version: "{{read from _vault/VERSION}}"
 *(Sources that inform this article)*
 - [[Summary: Source Title]] — *(what this source contributes)*
 - [[Summary: Another Source]] — *(what this source contributes)*
+
+## External References
+*(Web sources consulted during compilation — numbered to match [^web-N] inline markers)*
+[^web-1]: [Title](URL) — *(what this source confirmed, extended, or contradicted)*
+[^web-2]: [Title](URL) — *(what this source confirmed, extended, or contradicted)*
 ```
 
 ### Linking Rules — Non-Negotiable
@@ -111,12 +141,13 @@ tags: [{{topic}}]
 status: draft
 llm_model: "{{your model ID, e.g. claude-sonnet-4-6 or gemini-2.5-pro}}"
 framework_version: "{{read from _vault/VERSION}}"
+web_sources: ["{{url-1}}", "{{url-2}}"]
 ---
 
 # Topic: {{Topic Name}}
 
 ## Overview
-*(What is this topic area? What questions does it address?)*
+*(What is this topic area? What questions does it address? Web-verified scope claims marked [^web-N])*
 
 ## Key Concepts
 
@@ -144,6 +175,10 @@ framework_version: "{{read from _vault/VERSION}}"
 
 ## See Also
 - [[Topic: Related Topic]]
+
+## External References
+*(Web sources consulted during compilation)*
+[^web-1]: [Title](URL) — *(what this source confirmed, extended, or contradicted)*
 ```
 
 ---
@@ -190,6 +225,9 @@ This rewrites `wiki/_index.md` from scratch — do not edit the index manually.
 After compilation, report:
 - Articles created: [list]
 - Articles updated: [list]
+- Web sources consulted: [total count across all new articles]
+- Claims flagged with `[^web-N]`: [total count] — note any contradictions found
+- Articles with no web sources found: [list] — these are raw-source-only and should be treated as lower confidence
 - Unresolved links (concepts mentioned but no article yet): [list]
 - Suggested topic hubs to create: [list]
 - Suggested next action: "Run `vault-lint` to check for broken links and orphan pages."
