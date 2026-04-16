@@ -1,18 +1,27 @@
 """
 convert.py — File conversion engine for vault-ingest.
 
-Converts non-markdown files to markdown using pypandoc, then prepends
-minimal YAML frontmatter. The LLM layer handles semantic extraction.
+Converts non-markdown files to markdown using opendataloader-pdf (for PDFs)
+or pypandoc (for all other binary formats), then prepends minimal YAML
+frontmatter. The LLM layer handles semantic extraction.
+
+PDF conversion priority:
+  1. opendataloader-pdf  — high-fidelity, structure-aware PDF parser
+     (install: pip install opendataloader-pdf)
+  2. pypandoc fallback   — used when opendataloader-pdf is unavailable
 
 Supported input formats: PDF, HTML, DOCX, EPUB, RTF, and passthrough for
 .md / .txt files.
 
-Depends on: pypandoc (and a Pandoc binary reachable on PATH)
+Depends on:
+  - opendataloader-pdf (primary PDF backend, optional with graceful fallback)
+  - pypandoc (fallback PDF + all other binary formats; requires Pandoc on PATH)
 """
 
 import re
 import shutil
 import sys
+import tempfile
 from datetime import date
 from pathlib import Path
 
@@ -50,12 +59,48 @@ def _frontmatter(title: str, original_format: str, ingested: str) -> str:
     )
 
 
+def _try_opendataloader_pdf(input_path: Path) -> str | None:
+    """Convert a PDF via opendataloader-pdf.
+
+    Returns the markdown string on success, or None if the library is not
+    installed or the conversion fails (caller falls back to pypandoc).
+    """
+    try:
+        import opendataloader_pdf  # noqa: PLC0415
+    except ImportError:
+        return None
+
+    try:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            opendataloader_pdf.convert(
+                input_path=[str(input_path)],
+                output_dir=tmpdir,
+                format="markdown",
+            )
+            # opendataloader-pdf writes <original-stem>.md into output_dir
+            expected = Path(tmpdir) / f"{input_path.stem}.md"
+            if expected.exists():
+                return expected.read_text(encoding="utf-8", errors="replace")
+            # Fallback: pick any .md file produced in the temp dir
+            md_files = list(Path(tmpdir).glob("*.md"))
+            if md_files:
+                return md_files[0].read_text(encoding="utf-8", errors="replace")
+    except Exception:  # noqa: BLE001
+        pass
+
+    return None
+
+
 # ---------------------------------------------------------------------------
 # Public API
 # ---------------------------------------------------------------------------
 
 def convert_file(input_path: str | Path, output_dir: str | Path) -> Path:
     """Convert *input_path* to a markdown file inside *output_dir*.
+
+    For PDF files, opendataloader-pdf is tried first (structure-aware,
+    high-fidelity). If unavailable or unsuccessful, pypandoc is used as
+    a fallback. All other binary formats use pypandoc directly.
 
     Parameters
     ----------
@@ -75,7 +120,7 @@ def convert_file(input_path: str | Path, output_dir: str | Path) -> Path:
     ValueError
         If the file extension is not supported.
     RuntimeError
-        If pypandoc conversion fails.
+        If all conversion backends fail.
     """
     input_path = Path(input_path).expanduser().resolve()
     output_dir = Path(output_dir).expanduser().resolve()
@@ -97,10 +142,25 @@ def convert_file(input_path: str | Path, output_dir: str | Path) -> Path:
         return output_path
 
     # ------------------------------------------------------------------
-    # Pandoc-based conversion
+    # PDF: opendataloader-pdf first, then pypandoc fallback
+    # ------------------------------------------------------------------
+    if suffix == ".pdf":
+        body = _try_opendataloader_pdf(input_path)
+        if body is not None:
+            fm = _frontmatter(title, "pdf", today)
+            output_path.write_text(fm + body, encoding="utf-8")
+            return output_path
+
+        # Fall back to pypandoc
+        _body = _convert_via_pandoc(input_path, "pdf")
+        fm = _frontmatter(title, "pdf", today)
+        output_path.write_text(fm + _body, encoding="utf-8")
+        return output_path
+
+    # ------------------------------------------------------------------
+    # Other binary formats: pypandoc
     # ------------------------------------------------------------------
     format_map = {
-        ".pdf":  "pdf",
         ".html": "html",
         ".htm":  "html",
         ".docx": "docx",
@@ -111,11 +171,26 @@ def convert_file(input_path: str | Path, output_dir: str | Path) -> Path:
     if suffix not in format_map:
         raise ValueError(
             f"Unsupported file format '{suffix}'. "
-            f"Supported: {sorted(format_map)} + .md .txt"
+            f"Supported: {sorted({'.pdf'} | set(format_map))} + .md .txt"
         )
 
+    pandoc_fmt = format_map[suffix]
+    body = _convert_via_pandoc(input_path, pandoc_fmt)
+    fm = _frontmatter(title, pandoc_fmt, today)
+    output_path.write_text(fm + body, encoding="utf-8")
+    return output_path
+
+
+def _convert_via_pandoc(input_path: Path, pandoc_fmt: str) -> str:
+    """Run pypandoc conversion and return the markdown string.
+
+    Raises
+    ------
+    RuntimeError
+        If pypandoc is not installed or the conversion fails.
+    """
     try:
-        import pypandoc  # noqa: PLC0415  (deferred import for graceful error)
+        import pypandoc  # noqa: PLC0415
     except ImportError:
         print(
             "Error: pypandoc is not installed. "
@@ -124,10 +199,8 @@ def convert_file(input_path: str | Path, output_dir: str | Path) -> Path:
         )
         sys.exit(1)
 
-    pandoc_fmt = format_map[suffix]
-
     try:
-        body = pypandoc.convert_file(
+        return pypandoc.convert_file(
             str(input_path),
             "markdown",
             format=pandoc_fmt,
@@ -137,10 +210,6 @@ def convert_file(input_path: str | Path, output_dir: str | Path) -> Path:
         raise RuntimeError(
             f"pypandoc failed to convert '{input_path}': {exc}"
         ) from exc
-
-    fm = _frontmatter(title, pandoc_fmt, today)
-    output_path.write_text(fm + body, encoding="utf-8")
-    return output_path
 
 
 # ---------------------------------------------------------------------------
