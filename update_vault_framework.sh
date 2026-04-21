@@ -8,7 +8,8 @@
 # Steps (in order):
 #   1. Pre-flight: verify remotes, tools, clean working tree
 #   2. git fetch upstream
-#   3. git merge upstream/main  (stash local changes first if needed)
+#   3. git merge upstream/main -X theirs  (upstream wins all conflicts;
+#      local uncommitted changes are stashed first)
 #   4. uv sync
 #   5. bash _vault/install.sh   (re-link skills, check deps)
 #   6. python3 _vault/migrate.py (apply structural migrations)
@@ -152,14 +153,17 @@ FW_VERSION_BEFORE="$FW_VERSION"
 
 # ── 3. Merge upstream/main ────────────────────────────────────────────────────
 
-step 3 "Merging upstream/main"
+step 3 "Merging upstream/main (upstream wins conflicts)"
 
 if $DRY_RUN; then
-    info "[dry-run] git merge upstream/main"
+    info "[dry-run] git merge upstream/main -X theirs --no-edit"
     git log --oneline HEAD..upstream/main 2>/dev/null | sed 's/^/  incoming: /' || true
 else
-    if ! git merge upstream/main --no-edit; then
-        error "Merge conflict. Resolve conflicts, then re-run this script."
+    # -X theirs: on conflicting hunks, take upstream side and discard local.
+    # Non-conflicting local commits (e.g. wiki content) are preserved.
+    if ! git merge upstream/main -X theirs --no-edit; then
+        error "Merge failed (non-content reason: unrelated histories, binary conflict, etc.)."
+        error "Inspect with: git status"
         exit 1
     fi
 fi
