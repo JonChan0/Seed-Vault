@@ -5,11 +5,74 @@ in markdown files for the Seed Vault wiki framework.
 Depends on: python-frontmatter
 """
 
+import re
 import os
 from pathlib import Path
 from typing import Any
 
 import frontmatter
+
+def slugify(text: str) -> str:
+    """Convert Title Case or spaces into kebab-case.
+    
+    Example: "Uncontrolled Hypertension" -> "uncontrolled-hypertension"
+    Example: "summary-lilly-ai-collab" -> "summary-lilly-ai-collab"
+    """
+    # Remove apostrophes (don't replace with dash)
+    s = text.replace("'", "").replace("’", "")
+    # Replace non-alphanumeric with dashes
+    s = re.sub(r"[^a-zA-Z0-9]+", "-", s)
+    # Strip leading/trailing dashes and lowercase
+    return s.strip("-").lower()
+
+
+def build_vault_map(wiki_dir: Path) -> dict[str, Path]:
+    """Build a mapping of identifiers to absolute file paths."""
+    vault_map: dict[str, Path] = {}
+    if not wiki_dir.exists():
+        return vault_map
+
+    for md_file in wiki_dir.rglob("*.md"):
+        # 1. Filename stem
+        stem = md_file.stem.lower()
+        vault_map[stem] = md_file
+        
+        # 2. Slugified stem
+        vault_map[slugify(md_file.stem)] = md_file
+
+        # 3. Frontmatter title
+        metadata = parse_file(md_file)
+        title = metadata.get("title", "")
+        if title:
+            vault_map[title.lower()] = md_file
+            vault_map[slugify(title)] = md_file
+            
+        # 4. Handle files with underscores like _index.md
+        if md_file.name.startswith("_"):
+            stripped_name = md_file.stem.lstrip("_").lower()
+            vault_map[stripped_name] = md_file
+            vault_map[slugify(stripped_name)] = md_file
+            
+    return vault_map
+
+
+def resolve_link(link_target: str, vault_map: dict[str, Path]) -> Path | None:
+    """Resolve a wikilink target string to a file path.
+    
+    Matches against stems, titles, or slugified variants.
+    """
+    t = link_target.strip().lower()
+    
+    # Try direct match (stem or title)
+    if t in vault_map:
+        return vault_map[t]
+    
+    # Try slugified match
+    slug = slugify(t)
+    if slug in vault_map:
+        return vault_map[slug]
+        
+    return None
 
 
 def parse_file(filepath: str | os.PathLike) -> dict:

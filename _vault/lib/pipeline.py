@@ -199,7 +199,7 @@ _LOG_FRONTMATTER = (
     "sources: []\n"
     "tags: [pipeline/log]\n"
     "status: draft\n"
-    'framework_version: "2.0.0"\n'
+    'framework_version: "3.0.0"\n'
     "---\n"
     "\n"
     "# Pipeline Log\n"

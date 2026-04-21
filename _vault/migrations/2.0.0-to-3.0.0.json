@@ -1,0 +1,39 @@
+{
+  "from": "2.0.0",
+  "to": "3.0.0",
+  "date": "2026-04-21",
+  "description": "Remove topic article type. Delete wiki/topics/ files and strip [[Topic - ...]] wikilinks from remaining article bodies.",
+  "requires_reindex": true,
+  "requires_llm": true,
+  "operations": [
+    {
+      "op": "set_field",
+      "field": "framework_version",
+      "value": "3.0.0",
+      "affects": "all",
+      "note": "Bump framework_version on every article."
+    }
+  ],
+  "llm_instructions": [
+    "Step 1 — Delete topic articles:",
+    "  a. Glob 'wiki/topics/**/*.md'. If any matches, delete each file.",
+    "  b. Glob 'wiki/**/*.md' and read frontmatter; delete any file whose 'type' field equals 'topic' (case-insensitive) that is not already inside wiki/topics/.",
+    "  c. If wiki/topics/ now exists and is empty, remove the directory.",
+    "  d. For each deletion, append a line to wiki/_migration-log.md or wiki/_log.md noting the removed path.",
+    "",
+    "Step 2 — Strip topic wikilinks from surviving article bodies:",
+    "  a. Glob 'wiki/**/*.md' (exclude _index.md, _log.md, _migration-log.md).",
+    "  b. In each file's body (not frontmatter), remove any wikilink matching the regex `\\[\\[\\s*Topic\\s*-\\s*[^\\]|#]+(?:\\|[^\\]]+)?\\]\\]`.",
+    "  c. If the wikilink is the sole bullet/line content, remove the entire line. Otherwise leave surrounding prose intact.",
+    "  d. If removing the wikilink leaves an empty '## See Also' or '## Part of Topics' section, drop the heading + empty line pair.",
+    "  e. Update the article's 'updated:' frontmatter field to today when any edit is made.",
+    "",
+    "Step 3 — Clean frontmatter references:",
+    "  a. For every article, scan the 'sources:' list; drop any entry whose wikilink points into the former wiki/topics/ directory.",
+    "",
+    "Step 4 — Rebuild index:",
+    "  Run: uv run python _vault/lib/index.py --rebuild-qmd",
+    "",
+    "Idempotency: Re-running this step must be a no-op once all topic artifacts are gone."
+  ]
+}

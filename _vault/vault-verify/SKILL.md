@@ -16,7 +16,7 @@ You are verifying claims in Seed Vault wiki articles. This skill uses a **determ
 **All drafts**: `Glob wiki/**/*.md`, read frontmatter, collect all with `status: draft`
 **Whole wiki**: All articles regardless of status
 
-If verifying many articles, ask: "There are {{N}} articles to verify. This may take a while. Should I proceed, or focus on a specific topic?"
+If verifying many articles, ask: "There are {{N}} articles to verify. This may take a while. Should I proceed?"
 
 ---
 
@@ -117,7 +117,7 @@ WebFetch https://api.semanticscholar.org/graph/v1/paper/search?query={{url-encod
 
 For **factual/historical claims**:
 ```
-WebFetch https://en.wikipedia.org/w/api.php?action=query&prop=extracts&exintro&titles={{topic}}&format=json
+WebFetch https://en.wikipedia.org/w/api.php?action=query&prop=extracts&exintro&titles={{keywords}}&format=json
 ```
 
 For **general web verification**: use WebSearch
@@ -158,13 +158,13 @@ tags: [output, verification]
 ### ❓ Unsourced Claims
 | Article | Claim | Suggested action |
 |---------|-------|-----------------|
-| [[Article]] | "{{claim}}" | Ingest {{type of source}} |
+| [[Article]] | "{{claim}}" | Ingest supporting source |
 
 ## Verified Articles
 {{list of articles now marked verified}}
 
 ## Recommended Sources to Ingest
-- {{Source type/topic}} — would resolve claims in [[Article A]], [[Article B]]
+- {{Source content type}} — would resolve claims in [[Article A]], [[Article B]]
 ```
 
 ---

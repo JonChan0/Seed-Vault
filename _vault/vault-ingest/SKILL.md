@@ -84,7 +84,7 @@ Create an Obsidian-safe kebab-case file name from the title:
 Obsidian forbids these characters in file names (they also break wikilinks): `/ \ < > : " | ? * # ^ [ ]`
 
 Strip or replace them from the title before building the file name **and** from any `[[wikilink]]` text that references the file:
-- `:` → remove (Windows filename invalid; breaks `Summary:` / `Topic:` prefix convention — use `Summary -` / `Topic -` instead)
+- `:` → remove (Windows filename invalid; breaks `Summary:` prefix convention — use `Summary -` instead)
 - `#` → remove (Obsidian heading anchor marker)
 - `^` → remove (Obsidian block reference marker)
 - `[` `]` → remove (breaks wikilink syntax)
@@ -166,7 +166,7 @@ framework_version: "{{read from _vault/VERSION}}"
 ```
 
 To find existing concept articles for the "Concepts Extracted" section:
-1. Run `qmd query "{{topic keywords}}"` if qmd is available, OR
+1. Run `qmd query "{{concept keywords}}"` if qmd is available, OR
 2. Read `wiki/_index.md` to see what concepts already exist
 3. Link to any that match — mark others as "needs article"
 

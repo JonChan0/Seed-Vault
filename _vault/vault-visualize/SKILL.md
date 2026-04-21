@@ -61,7 +61,7 @@ For **Mermaid diagrams** (flowcharts, simple diagrams): use Obsidian's native Me
 
 ## Step 4: Create the Obsidian Wrapper Page
 
-Write `wiki/concepts/viz-{{name}}.md` (or `wiki/topics/viz-{{name}}.md`):
+Write `wiki/concepts/viz-{{name}}.md`:
 
 ```markdown
 ---
@@ -70,7 +70,7 @@ type: visualization
 created: {{today}}
 updated: {{today}}
 sources: [{{wikilinks to source articles}}]
-tags: [visualization, {{topic-tags}}]
+tags: [visualization, {{concept-tags}}]
 status: draft
 viz_file: "viz/{{name}}.html"
 framework_version: "{{read from _vault/VERSION}}"
@@ -98,7 +98,6 @@ framework_version: "{{read from _vault/VERSION}}"
 
 ## See Also
 - [[Related Concept]]
-- [[Topic - Parent Topic]]
 ```
 
 ---
@@ -121,7 +120,7 @@ Or manually add to `wiki/_index.md` under `## Visualizations`:
 
 - `viz/concept-bar-chart.html`
 - `viz/wiki-network-graph.html`
-- `viz/topic-timeline.html`
+- `viz/concept-timeline.html`
 - `wiki/concepts/viz-concept-bar-chart.md` (wrapper)
 
 ---

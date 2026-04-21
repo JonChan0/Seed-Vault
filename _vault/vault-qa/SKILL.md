@@ -32,8 +32,7 @@ Read the full content of the top-N articles identified by qmd (or the index+grep
 
 Prioritize reading order:
 1. Concept articles on the core topic
-2. Topic hub pages for the domain
-3. Source summaries if you need primary evidence
+2. Source summaries if you need primary evidence
 
 Cap at reading ~15 articles. If more seem relevant, note that the answer may be incomplete.
 
@@ -61,7 +60,7 @@ Write a thorough answer using only what's in the wiki:
 According to [[Concept Article]], ... [[Summary - Source]] adds that ...
 
 **{{Another aspect}}**
-[[Topic - Related Topic]] covers ... The key sources are [[Summary - X]] and [[Summary - Y]].
+[[Related Concept]] covers ... The key sources are [[Summary - X]] and [[Summary - Y]].
 
 ### Knowledge Gaps
 The wiki doesn't currently cover:
@@ -75,7 +74,6 @@ The wiki doesn't currently cover:
 ### Sources Consulted
 - [[Concept Name]]
 - [[Summary - Source Title]]
-- [[Topic - Topic Name]]
 ```
 
 **Citation style**: Always use `[[wikilinks]]` to cite. If quoting a specific claim, write: `"quote" — [[Summary - Source]]`
@@ -87,7 +85,7 @@ The wiki doesn't currently cover:
 ## Step 4: Save the Output (if requested)
 
 **As an output file** (ephemeral):
-Save to `outputs/qa-{{topic}}-{{today}}.md` with frontmatter:
+Save to `outputs/qa-{{concept}}-{{today}}.md` with frontmatter:
 ```yaml
 ---
 title: "Q&A: {{Question}}"

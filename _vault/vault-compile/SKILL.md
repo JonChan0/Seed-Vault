@@ -21,7 +21,7 @@ Before writing anything:
 2. Read `wiki/_index.md` — see the current wiki structure
 3. `Glob wiki/sources/*.md` — list all source summaries
 4. `Glob raw/*` — list all raw sources
-5. Use `qmd query "{{topic}}"` if available, or read source summaries directly to identify which concepts need articles
+5. Use `qmd query "{{concept}}"` if available, or read source summaries directly to identify which concepts need articles
 6. Identify which source summaries are missing concept articles (check "Concepts Extracted" sections)
 
 Report what you found: "Found N source summaries. X concept articles exist. Y new concepts need articles: [list]"
@@ -30,7 +30,7 @@ Report what you found: "Found N source summaries. X concept articles exist. Y ne
 
 ## Web Verification Step (NEW ARTICLES ONLY)
 
-Before writing any **new** concept or topic article, run 1–3 targeted WebSearches to independently ground the synthesis. This is mandatory — do not skip it.
+Before writing any **new** concept article, run 1–3 targeted WebSearches to independently ground the synthesis. This is mandatory — do not skip it.
 
 ### Search strategy
 1. Search the concept name + domain (e.g. `"CRISPR base editing mechanism"`)
@@ -67,7 +67,7 @@ type: concept
 created: {{today}}
 updated: {{today}}
 sources: ["[[Summary - Source Title]]", "[[Summary - Another Source]]"]
-tags: [{{topic/subtopic}}, {{another-tag}}]
+tags: [{{concept/subconcept}}, {{another-tag}}]
 status: draft
 aliases: ["{{alternate name}}", "{{abbreviation}}"]
 llm_model: "{{your model ID, e.g. claude-sonnet-4-6 or gemini-2.5-pro}}"
@@ -97,9 +97,6 @@ web_sources: ["{{url-1}}", "{{url-2}}"]
 - [[Related Concept A]] — *(one-line relationship description)*
 - [[Related Concept B]] — *(one-line relationship description)*
 
-### Part of Topics
-- [[Topic - Parent Topic]]
-
 ### See Also
 - [[Another Concept]]
 
@@ -119,67 +116,7 @@ web_sources: ["{{url-1}}", "{{url-2}}"]
 1. **`sources:` frontmatter** must list every source summary that contributed
 2. **Inline `[[wikilinks]]`** throughout the text whenever another concept is mentioned
 3. **"Related Concepts"** section must have at least 2 links (if the wiki has other concepts)
-4. **"Part of Topics"** — link to the relevant topic hub page (create it if it doesn't exist)
-5. After writing this article, update the corresponding source summaries to add this concept under `## Concepts Extracted`
-
----
-
-## Article Writing: Topic Hub Pages
-
-Topic hubs are cluster pages that connect groups of related concepts. Create them when you see 3+ concepts that belong to the same domain.
-
-Write `wiki/topics/{{topic-name}}.md`:
-
-```markdown
----
-title: "Topic - {{Topic Name}}"
-type: topic
-created: {{today}}
-updated: {{today}}
-sources: []
-tags: [{{topic}}]
-status: draft
-llm_model: "{{your model ID, e.g. claude-sonnet-4-6 or gemini-2.5-pro}}"
-framework_version: "{{read from _vault/VERSION}}"
-web_sources: ["{{url-1}}", "{{url-2}}"]
----
-
-# Topic - {{Topic Name}}
-
-## Overview
-*(What is this topic area? What questions does it address? Web-verified scope claims marked [^web-N])*
-
-## Key Concepts
-
-### Core Concepts
-- [[Concept A]] — *(one-line description)*
-- [[Concept B]] — *(one-line description)*
-- [[Concept C]] — *(one-line description)*
-
-### Supporting Concepts
-- [[Concept D]] — *(one-line description)*
-
-## Recommended Reading Order
-*(For someone new to this topic — list concepts from foundational to advanced)*
-1. [[Foundational Concept A]] — start here
-2. [[Concept B]] — builds on A
-3. [[Advanced Concept C]] — requires A and B
-
-## Key Sources
-*(Primary sources in this topic area)*
-- [[Summary - Source Title]]
-
-## Open Questions
-*(What's unknown, debated, or worth exploring further?)*
-- {{At least one open question — never leave this empty}}
-
-## See Also
-- [[Topic - Related Topic]]
-
-## External References
-*(Web sources consulted during compilation)*
-[^web-1]: [Title](URL) — *(what this source confirmed, extended, or contradicted)*
-```
+4. After writing this article, update the corresponding source summaries to add this concept under `## Concepts Extracted`
 
 ---
 
@@ -229,5 +166,4 @@ After compilation, report:
 - Claims flagged with `[^web-N]`: [total count] — note any contradictions found
 - Articles with no web sources found: [list] — these are raw-source-only and should be treated as lower confidence
 - Unresolved links (concepts mentioned but no article yet): [list]
-- Suggested topic hubs to create: [list]
 - Suggested next action: "Run `vault-lint` to check for broken links and orphan pages."

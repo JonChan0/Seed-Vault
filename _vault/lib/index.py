@@ -31,7 +31,6 @@ INDEX_FILE = WIKI_DIR / "_index.md"
 RAW_DIR = VAULT_ROOT / "raw"
 SOURCES_DIR = WIKI_DIR / "sources"
 CONCEPTS_DIR = WIKI_DIR / "concepts"
-TOPICS_DIR = WIKI_DIR / "topics"
 LOG_FILE = WIKI_DIR / "_log.md"
 
 # Files to exclude from scanning
@@ -49,43 +48,19 @@ try:
 except ImportError:
     _HAS_FM_LIB = False
 
+# Add vault root to path to allow relative imports of _vault.lib
+sys.path.append(str(VAULT_ROOT))
+
 try:
-    from _vault.lib.frontmatter import parse_file as _fm_parse_file, scan_directory as _fm_scan_directory
-
-    def parse_file(path: Path) -> dict:
-        return _fm_parse_file(path)
-
-    def scan_directory(dirpath: Path, fields=None) -> list[dict]:
-        return _fm_scan_directory(dirpath, fields)
-
-except ImportError:
-    import yaml  # type: ignore
-
-    _FM_RE = re.compile(r"^---\s*\n(.*?)\n---\s*\n", re.DOTALL)
-
-    def _parse_frontmatter_regex(text: str) -> dict:
-        m = _FM_RE.match(text)
-        if not m:
-            return {}
-        try:
-            return yaml.safe_load(m.group(1)) or {}
-        except yaml.YAMLError:
-            return {}
-
-    def parse_file(path: Path) -> dict:
-        try:
-            return _parse_frontmatter_regex(path.read_text(encoding="utf-8"))
-        except (OSError, UnicodeDecodeError):
-            return {}
-
-    def scan_directory(dirpath: Path, fields=None) -> list[dict]:
-        results = []
-        for md_file in sorted(Path(dirpath).rglob("*.md")):
-            metadata = parse_file(md_file)
-            if fields is not None:
-                metadata = {k: metadata[k] for k in fields if k in metadata}
-            results.append({"path": str(md_file), "metadata": metadata})
-        return results
+    from _vault.lib.frontmatter import (
+        parse_file, 
+        scan_directory,
+        slugify,
+        resolve_link
+    )
+except ImportError as e:
+    print(f"ERROR: Could not import _vault.lib.frontmatter: {e}")
+    sys.exit(1)
 
 
 # ---------------------------------------------------------------------------
@@ -123,7 +98,6 @@ def count_previous_entries(index_path: Path) -> int:
 TYPE_ORDER = [
     ("concept",        "Concepts"),
     ("source-summary", "Source Summaries"),
-    ("topic",          "Topics"),
     ("visualization",  "Visualizations"),
     ("output",         "Outputs"),
 ]
@@ -131,7 +105,6 @@ TYPE_ORDER = [
 PLACEHOLDER = {
     "concept":        "*(No concepts yet — ingest sources and use vault-compile)*",
     "source-summary": "*(No sources yet — drop files into `raw/` and use vault-ingest)*",
-    "topic":          "*(No topics yet — topics are created automatically during compilation)*",
     "visualization":  "*(No visualizations yet — use vault-visualize)*",
     "output":         "*(No outputs yet)*",
 }
@@ -142,7 +115,7 @@ def collect_articles(wiki_dir: Path) -> dict[str, list[dict]]:
     if not wiki_dir.exists():
         return defaultdict(list)
 
-    raw = scan_directory(wiki_dir, fields=["title", "type", "tags", "status"])
+    raw = scan_directory(Path(wiki_dir), fields=["title", "type", "tags", "status"])
 
     groups: dict[str, list[dict]] = defaultdict(list)
 
@@ -152,11 +125,23 @@ def collect_articles(wiki_dir: Path) -> dict[str, list[dict]]:
             continue
 
         meta = entry["metadata"]
-        article_type = str(meta.get("type", "")).strip()
+        article_type = str(meta.get("type", "")).strip().lower()
 
-        # Skip index/catalog/unknown types that aren't article types
-        if article_type in ("index", ""):
-            continue
+        # Check if type is one of our valid article types
+        valid_types = {t[0] for t in TYPE_ORDER}
+        if article_type not in valid_types:
+            # Maybe the type is "source-summary" but was written as "source summary"
+            normalized_type = article_type.replace(" ", "-")
+            if normalized_type in valid_types:
+                article_type = normalized_type
+            else:
+                # Guess from path if type is missing or invalid
+                if "concepts/" in str(path):
+                    article_type = "concept"
+                elif "sources/" in str(path):
+                    article_type = "source-summary"
+                else:
+                    continue
 
         title = str(meta.get("title", path.stem)).strip()
         tags = meta.get("tags", [])
@@ -164,6 +149,7 @@ def collect_articles(wiki_dir: Path) -> dict[str, list[dict]]:
 
         groups[article_type].append({
             "title": title,
+            "stem": path.stem,
             "tags": tags,
             "status": status,
         })
@@ -181,7 +167,7 @@ def build_index_text(groups: dict[str, list[dict]], today: str) -> str:
 
     lines: list[str] = []
 
-    # Frontmatter
+    # Frontmatter (required by CLAUDE.md; _index.base filters on type:index)
     lines += [
         "---",
         'title: "Wiki Index"',
@@ -201,7 +187,9 @@ def build_index_text(groups: dict[str, list[dict]], today: str) -> str:
         if articles:
             for art in articles:
                 tag_part = f" — tags: {tags_str(art['tags'])}" if art["tags"] else ""
-                lines.append(f"- [[{art['title']}]]{tag_part}")
+                # Use aliased link: [[stem|Title]]
+                link = f"[[{art['stem']}|{art['title']}]]"
+                lines.append(f"- {link}{tag_part}")
         else:
             lines.append(PLACEHOLDER.get(type_key, "*(none)*"))
         lines.append("")
@@ -256,24 +244,37 @@ def print_stats(groups: dict[str, list[dict]], previous_count: int) -> None:
 # Orphaned-source cleanup
 # ---------------------------------------------------------------------------
 
-def _raw_stems() -> set[str]:
-    """Return lowercase stems of all files currently present in raw/."""
-    if not RAW_DIR.exists():
-        return set()
-    return {p.stem.lower() for p in RAW_DIR.iterdir() if p.is_file()}
-
-
 def find_orphaned_summaries() -> list[Path]:
     """Return wiki/sources/summary-*.md files whose raw/ counterpart no longer exists."""
     if not SOURCES_DIR.exists():
         return []
-    active = _raw_stems()
+    
+    # Get active raw stems (slugified for consistency)
+    active_raw_slugs = {slugify(p.stem) for p in RAW_DIR.iterdir() if p.is_file()}
     orphans = []
+    
     for summary in sorted(SOURCES_DIR.glob("summary-*.md")):
-        # Convention: summary-foo.md ↔ raw/foo.*
-        raw_stem = summary.stem[len("summary-"):]
-        if raw_stem.lower() not in active:
+        # 1. Check normalized filename convention: summary-foo.md ↔ raw/foo.*
+        summary_stem = summary.stem[len("summary-"):]
+        if slugify(summary_stem) in active_raw_slugs:
+            continue
+            
+        # 2. Robust check: parse frontmatter and look for [[raw/filename]] in sources
+        fm = parse_file(summary)
+        sources = fm.get("sources", []) or []
+        found_active_source = False
+        for src in sources:
+            # Match [[raw/filename.ext]] or [[raw/filename]]
+            m = re.search(r"\[\[raw/([^\]#|]+)", str(src))
+            if m:
+                src_stem = Path(m.group(1).strip()).stem
+                if slugify(src_stem) in active_raw_slugs:
+                    found_active_source = True
+                    break
+        
+        if not found_active_source:
             orphans.append(summary)
+            
     return orphans
 
 
@@ -314,17 +315,6 @@ def _find_concepts_referencing_source(source_title: str) -> list[Path]:
     return [
         f for f in sorted(CONCEPTS_DIR.rglob("*.md"))
         if any(s.lower() == title_lower for s in _get_sources_list(f))
-    ]
-
-
-def _find_topics_referencing_concept(concept_title: str) -> list[Path]:
-    """Return topic files that contain a [[concept_title]] wikilink in their body."""
-    if not TOPICS_DIR.exists():
-        return []
-    title_lower = concept_title.lower()
-    return [
-        f for f in sorted(TOPICS_DIR.rglob("*.md"))
-        if any(link.strip().lower() == title_lower for link in _get_body_wikilinks(f))
     ]
 
 
@@ -454,11 +444,8 @@ def cleanup_orphaned_sources(dry_run: bool = False) -> dict:
     2. For each orphaned summary find referencing concept articles:
        - If the concept's sources: list is entirely orphaned → mark for deletion.
        - Otherwise → mark the orphaned source for removal from the concept.
-    3. For each concept marked for deletion find referencing topic articles:
-       - If ALL concept wikilinks in the topic will be deleted → mark topic for deletion.
-       - Otherwise → mark the deleted concept for removal from the topic.
-    4. Apply modifications (remove references) then deletions.
-    5. Log every action to wiki/_log.md.
+    3. Apply modifications (remove references) then deletions.
+    4. Log every action to wiki/_log.md.
 
     Args:
         dry_run: If True, return a preview dict without modifying any files.
@@ -496,32 +483,6 @@ def cleanup_orphaned_sources(dry_run: bool = False) -> dict:
             else:
                 concepts_to_modify[concept_path].append(summary_title)
 
-    # --- Pass 2: decide which topics to delete vs modify ---
-    deleted_concept_titles: set[str] = {_get_title(p) for p in concepts_to_delete}
-    concept_title_map = _concept_title_set()
-
-    topics_to_delete: set[Path] = set()
-    # topic path → list of concept titles to strip
-    topics_to_modify: dict[Path, list[str]] = defaultdict(list)
-
-    for concept_path in concepts_to_delete:
-        concept_title = _get_title(concept_path)
-        for topic_path in _find_topics_referencing_concept(concept_title):
-            # All concept-wikilinks in this topic
-            topic_concept_links = [
-                concept_title_map[link.strip().lower()]
-                for link in _get_body_wikilinks(topic_path)
-                if link.strip().lower() in concept_title_map
-            ]
-            # Delete the topic only if every concept it links to is being removed
-            all_gone = bool(topic_concept_links) and all(
-                link in deleted_concept_titles for link in topic_concept_links
-            )
-            if all_gone:
-                topics_to_delete.add(topic_path)
-            else:
-                topics_to_modify[topic_path].append(concept_title)
-
     # --- Dry-run: return preview without touching files ---
     if dry_run:
         return {
@@ -530,12 +491,11 @@ def cleanup_orphaned_sources(dry_run: bool = False) -> dict:
             "modified": [],
             "would_delete": sorted(
                 str(p.relative_to(VAULT_ROOT))
-                for p in list(orphaned_summaries) + list(concepts_to_delete) + list(topics_to_delete)
+                for p in list(orphaned_summaries) + list(concepts_to_delete)
             ),
             "would_modify": sorted(
                 str(p.relative_to(VAULT_ROOT))
-                for p in list(concepts_to_modify) + list(topics_to_modify)
-                if p not in topics_to_delete
+                for p in concepts_to_modify.keys()
             ),
         }
 
@@ -552,23 +512,6 @@ def cleanup_orphaned_sources(dry_run: bool = False) -> dict:
         rel = str(concept_path.relative_to(VAULT_ROOT))
         modified.append(rel)
         _append_cleanup_log(f"Removed source ref(s) {source_titles} from {rel}")
-
-    # --- Modify topics (strip deleted-concept references) ---
-    for topic_path, concept_titles in topics_to_modify.items():
-        if topic_path in topics_to_delete:
-            continue
-        for title in concept_titles:
-            _remove_wikilink_from_body(topic_path, title)
-        rel = str(topic_path.relative_to(VAULT_ROOT))
-        modified.append(rel)
-        _append_cleanup_log(f"Removed concept ref(s) {concept_titles} from {rel}")
-
-    # --- Delete topics ---
-    for topic_path in topics_to_delete:
-        rel = str(topic_path.relative_to(VAULT_ROOT))
-        topic_path.unlink()
-        deleted.append(rel)
-        _append_cleanup_log(f"Deleted topic {rel} (all referenced concepts removed)")
 
     # --- Delete concepts ---
     for concept_path in concepts_to_delete:

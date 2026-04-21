@@ -16,7 +16,6 @@ This is a **Seed Vault** wiki. Gemini is the primary author of all wiki content.
 | `wiki/_migration-log.md` | Record of applied framework migrations | Do not modify (managed by vault-migrate) |
 | `wiki/concepts/` | Concept articles synthesized from multiple sources | Gemini |
 | `wiki/sources/` | One summary per file in `raw/` | Gemini |
-| `wiki/topics/` | Topic hub pages that cluster related concepts | Gemini |
 | `viz/` | Self-contained HTML visualizations | Gemini |
 | `outputs/` | Q&A reports, lint reports, one-off outputs (gitignored — ephemeral) | Gemini |
 | `_templates/` | Obsidian article templates | Do not modify |
@@ -49,14 +48,14 @@ Every file Gemini writes in `wiki/` MUST begin with this frontmatter:
 ```yaml
 ---
 title: "Article Title"
-type: concept | source-summary | topic | visualization | output
+type: concept | source-summary | visualization | output
 created: YYYY-MM-DD
 updated: YYYY-MM-DD
 sources: ["[[Source Name]]", "[[Another Source]]"]
-tags: [topic/subtopic, another-tag]
+tags: [concept/subconcept, another-tag]
 status: draft | reviewed | verified
 llm_model: "gemini-2.5-pro"
-framework_version: "2.0.0"
+framework_version: "3.0.0"
 ---
 ```
 
@@ -75,16 +74,15 @@ framework_version: "2.0.0"
 2. **Bidirectional links are mandatory**: if article A links to B, B must link back to A
 3. **Every concept article** must reference its source summaries via the `sources:` frontmatter array
 4. **Every source summary** must list which concept articles it contributed to under `## Concepts Extracted`
-5. **Topic pages** are hub nodes — every concept in a cluster links `[[Topic Hub]]`, and the hub links all members
-6. **Section links** `[[Article#Section]]` for precise cross-references
-7. **Tags** create implicit graph clusters — use them consistently
+5. **Section links** `[[article-stem#Section|Article Title]]` for precise cross-references
+6. **Tags** create implicit graph clusters — use them consistently
+7. **Aliased format is MANDATORY**: Always use `[[kebab-case-stem|Article Title]]` for internal links. This ensures links resolve to kebab-case filenames while displaying Title Case names.
 
 ### Backlink pattern:
 ```markdown
 ## See Also
-- [[Related Concept A]]
-- [[Related Concept B]]
-- [[Topic - Parent Topic]]
+- [[related-concept-a|Related Concept A]]
+- [[related-concept-b|Related Concept B]]
 ```
 
 ---
@@ -112,16 +110,13 @@ Or manually append the entry to `wiki/_index.md` if doing a single article.
 # Wiki Index
 
 ## Concepts
-- [[Concept Name]] — tags: tag1, tag2
+- [[concept-name|Concept Name]] — tags: tag1, tag2
 
 ## Source Summaries
-- [[Summary - Source Title]] — tags: tag1, tag2
-
-## Topics
-- [[Topic - Topic Name]] — tags: tag1, tag2
+- [[summary-source-title|Summary - Source Title]] — tags: tag1, tag2
 
 ## Visualizations
-- [[Viz - Visualization Name]] — tags: tag1, tag2
+- [[viz-name|Viz - Visualization Name]] — tags: tag1, tag2
 
 ---
 *Last updated: YYYY-MM-DD | Total articles: N*
@@ -136,7 +131,7 @@ Or manually append the entry to `wiki/_index.md` if doing a single article.
 ```
 [2026-04-07 ingest] raw/crispr-revolution.md → wiki/sources/summary-crispr-revolution.md
 [2026-04-07 compile] Created 3 concept articles from 2 sources
-[2026-04-07 index] Rebuilt: 15 concepts, 8 sources, 3 topics (qmd: 26 docs indexed)
+[2026-04-07 index] Rebuilt: 15 concepts, 8 sources (qmd: 23 docs indexed)
 [2026-04-07 lint] 2 broken links, 1 orphan — 2 auto-fixed
 ```
 
@@ -156,7 +151,7 @@ Ten skills power this vault. They are loaded from `.gemini/skills/` at the vault
 | `vault-index` | "Reindex" / "Rebuild index" — regenerates _index.md and rebuilds qmd search index |
 | `vault-qa` | "What does the wiki say about X?" — qmd retrieval + LLM synthesis |
 | `vault-verify` | "Fact-check this article" — deterministic claim extraction + clean-context LLM verification |
-| `vault-lint` | "Check the wiki health" — 9 deterministic structural checks + LLM review |
+| `vault-lint` | "Check the wiki health" — 7 deterministic structural checks + LLM review |
 | `vault-visualize` | "Visualize X" / "Chart Y" — generates HTML visualizations with wiki wrappers |
 | `vault-digest` | "Briefing" / "What's in the wiki?" — fully deterministic status summary |
 | `vault-migrate` | "Migrate my wiki" / "Apply framework updates" — updates existing articles after a framework version bump |
@@ -171,7 +166,7 @@ Ten skills power this vault. They are loaded from `.gemini/skills/` at the vault
 | vault-index | index.py: generate _index.md + qmd | — (fully deterministic) |
 | vault-qa | qmd search for retrieval | Synthesize answer from retrieved articles |
 | vault-verify | verify.py: pattern match claims | Clean-context subagent for semantic verification |
-| vault-lint | lint.py: 9 structural checks | Review complex issues, suggest fixes |
+| vault-lint | lint.py: 7 structural checks | Review complex issues, suggest fixes |
 | vault-digest | digest.py: full stats generation | — (fully deterministic) |
 | vault-migrate | migrate.py (existing) | Handle `requires_llm` migration steps |
 | vault-visualize | — | Full LLM: create HTML vizs |
@@ -211,12 +206,11 @@ Skills are loaded from `.gemini/skills/` at the workspace root (hard-linked to `
 
 - **Concept articles**: `wiki/concepts/concept-name.md` (kebab-case)
 - **Source summaries**: `wiki/sources/summary-source-title.md`
-- **Topic hubs**: `wiki/topics/topic-name.md`
-- **Visualizations (HTML)**: `viz/topic-chart-type.html`
-- **Viz wrappers**: `wiki/concepts/viz-topic-name.md`
-- **Outputs**: `outputs/type-topic-YYYY-MM-DD.md`
+- **Visualizations (HTML)**: `viz/concept-chart-type.html`
+- **Viz wrappers**: `wiki/concepts/viz-concept-name.md`
+- **Outputs**: `outputs/type-concept-YYYY-MM-DD.md`
 
-All article titles in `[[wikilinks]]` use Title Case.
+All `[[wikilinks]]` must use the aliased format: `[[kebab-case-stem|Title Case Title]]`.
 File names use kebab-case.
 
 ---

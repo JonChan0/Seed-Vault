@@ -457,7 +457,14 @@ def main():
         print(f"\n⚠ {len(llm_migrations)} migration(s) require a semantic LLM step.")
         print("  Run vault-migrate in Claude Code or Gemini CLI to complete these:\n")
         for m in llm_migrations:
-            print(f"  [{m['from']} \u2192 {m['to']}] {m.get('llm_instructions', '(see migration spec)')}")
+            instructions = m.get("llm_instructions", "(see migration spec)")
+            header = f"  [{m['from']} \u2192 {m['to']}]"
+            if isinstance(instructions, list):
+                print(header)
+                for line in instructions:
+                    print(f"    {line}")
+            else:
+                print(f"{header} {instructions}")
 
     # Post-migration hints
     needs_reindex = any(m.get("requires_reindex") for m in pending)

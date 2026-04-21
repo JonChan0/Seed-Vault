@@ -28,7 +28,7 @@ Read the engine's output and present it to the user. The report includes:
 - **Hub Nodes**: The 5 most-linked articles
 - **Orphan Pages**: Articles with no incoming links
 - **Tag Distribution**: Tag frequency across the wiki
-- **Knowledge Gaps**: Raw files without summaries, singleton tags, concepts without hubs
+- **Knowledge Gaps**: Raw files without summaries, singleton tags
 
 ---
 
@@ -38,7 +38,7 @@ Based on the digest output, suggest actionable next steps:
 
 1. If there are unsummarized raw files → "Run `vault-ingest` to process {{N}} raw files"
 2. If there are many drafts → "Run `vault-verify` to fact-check draft articles"
-3. If there are orphan pages → "Run `vault-lint` to connect orphan pages to topic hubs"
+3. If there are orphan pages → "Run `vault-lint` to connect orphan pages to the knowledge graph"
 4. If the index seems stale → "Run `vault-index` to rebuild"
 
 ---

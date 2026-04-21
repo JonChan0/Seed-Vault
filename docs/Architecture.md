@@ -20,8 +20,7 @@ wiki/         ← LLM writes everything here
   ├── _index.md        master index (deterministically generated)
   ├── _log.md          append-only operation log
   ├── concepts/        synthesized concept articles
-  ├── sources/         one summary per raw/ file
-  └── topics/          topic hub pages (cluster nodes for graph view)
+  └── sources/         one summary per raw/ file
 
 viz/          ← self-contained HTML visualizations
 outputs/      ← Q&A reports, lint reports, one-offs
@@ -58,7 +57,7 @@ your-wiki/
 ├── .gemini/             Gemini CLI project config
 │   └── skills/          Project-local skill hard links → _vault/ (gitignored)
 ├── _vault/              Skill definitions & engines (tracked in git)
-│   ├── VERSION          Framework version (2.0.0)
+│   ├── VERSION          Framework version (3.0.0)
 │   ├── install.sh       Run once after cloning
 │   ├── migrate.py       Wiki migration runner
 │   ├── migrations/      Migration specs (JSON)

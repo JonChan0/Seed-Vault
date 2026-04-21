@@ -88,7 +88,7 @@ Seed Vault works with **Claude Code** or **Gemini CLI** as the LLM frontend. Bot
 
 ```
 raw/      ← you drop sources here
-wiki/     ← your LLM writes everything here (concepts, sources, topics)
+wiki/     ← your LLM writes everything here (concepts, sources, visualizations)
 viz/      ← self-contained HTML visualizations
 outputs/  ← Q&A reports, lint reports, one-offs
 ```
@@ -103,7 +103,7 @@ The LLM is the primary author of all files in `wiki/`, `viz/`, and `outputs/`. D
 | Skill Name | Say this... | The LLM will... |
 |------------|-------------|-----------------|
 | `vault-ingest` | "Ingest raw/paper.pdf" / "import this URL" | Run convert.py for file conversion, then create source summary in wiki/sources/; supports YouTube transcripts and Wayback Machine fallback for dead URLs |
-| `vault-compile` | "Compile the wiki" / "write an article about X" | Build interconnected concept articles and topic hub pages from raw sources, with Recommended Reading Order on hub pages |
+| `vault-compile` | "Compile the wiki" / "write an article about X" | Build interconnected concept articles from raw sources |
 | `vault-pipeline` | "Process everything" / "run the pipeline" | Run pipeline.py to detect changes, then orchestrate ingest → compile → index → verify (clean-context subagent) → lint |
 | `vault-index` | "Reindex" / "rebuild index" | Run index.py to rebuild _index.md and qmd search index; fully deterministic |
 | `vault-qa` | "What do we know about X?" / "research X" | Use qmd for retrieval, then synthesize an answer with citations and confidence rating |
@@ -118,7 +118,7 @@ The LLM is the primary author of all files in `wiki/`, `viz/`, and `outputs/`. D
 
 ## Obsidian Setup
 
-Open as a vault: Obsidian → File → Open Vault → select this folder. The vault is pre-configured with graph view colors (Concepts: blue, Sources: green, Topics: purple, Viz: orange), templates in `_templates/`, and backlinks enabled. See [docs/Obsidian-Setup.md](docs/Obsidian-Setup.md) for plugin recommendations and visualization viewing instructions.
+Open as a vault: Obsidian → File → Open Vault → select this folder. The vault is pre-configured with graph view colors (Concepts: blue, Sources: green, Viz: orange), templates in `_templates/`, and backlinks enabled. See [docs/Obsidian-Setup.md](docs/Obsidian-Setup.md) for plugin recommendations and visualization viewing instructions.
 
 ---
 

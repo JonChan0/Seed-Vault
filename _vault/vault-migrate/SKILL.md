@@ -70,6 +70,15 @@ For each:
 6. Update `updated:` date on every file modified
 7. Report: "LLM migration applied to N articles"
 
+### Known multi-step migrations
+
+**2.0.0 → 3.0.0 (topic type removed):** `llm_instructions` is a list — execute each step in order.
+- Delete `wiki/topics/` and any article with `type: topic`.
+- Strip `[[Topic - ...]]` wikilinks from surviving article bodies.
+- Drop `sources:` entries that point into `wiki/topics/`.
+- Rebuild the index with `uv run python _vault/lib/index.py --rebuild-qmd`.
+Log every deletion to `wiki/_log.md`.
+
 ---
 
 ## Step 5: Post-Migration

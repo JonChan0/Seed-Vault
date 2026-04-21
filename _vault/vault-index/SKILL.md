@@ -34,7 +34,6 @@ Index rebuilt: {{today}}
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 Concepts:           {{N}}
 Source Summaries:   {{N}}
-Topics:             {{N}}
 Visualizations:     {{N}}
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 Total articles:     {{N}}
@@ -48,7 +47,7 @@ qmd:                {{N}} documents indexed
 
 Append to `wiki/_log.md`:
 ```
-[{{today}} index] Rebuilt: {{N}} concepts, {{N}} sources, {{N}} topics (qmd: {{N}} docs indexed)
+[{{today}} index] Rebuilt: {{N}} concepts, {{N}} sources (qmd: {{N}} docs indexed)
 ```
 
 ---

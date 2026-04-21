@@ -56,8 +56,7 @@ After all ingestion is complete:
 1. Collect every concept marked "needs article" from the source summaries processed in Step 3
 2. Cross-reference against `wiki/_index.md` to find which ones truly have no article yet
 3. For each genuinely new concept, write a `wiki/concepts/{{name}}.md` using the standard concept article structure
-4. Create topic hub pages when 3+ new concepts share a domain tag
-5. Maintain all backlinks — update existing articles that should reference the new concepts
+4. Maintain all backlinks — update existing articles that should reference the new concepts
 
 Track progress: "Compiled {{N}}/{{total}} concept articles."
 
@@ -134,10 +133,7 @@ Review the output. For the articles touched in this pipeline run, check:
 2. **Missing backlinks** — new articles should have reverse links
 3. **Index sync** — all new articles appear in the index
 
-Auto-fix missing backlinks if `auto_fixable` is true:
-```bash
-uv run python _vault/lib/lint.py --fix-backlinks
-```
+Fix missing backlinks manually: for each pair A→B where B lacks a link back to A, append `- [[a-stem|A Title]]` under B's `## See Also` section.
 
 ---
 
@@ -155,7 +151,6 @@ Pipeline complete — {{today}}
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 Sources ingested:      {{N}}
 Concept articles:      {{N created}} created, {{N updated}} updated
-Topic hubs:            {{N created}} created
 Index rebuilt:         Yes (+ qmd updated)
 Verification:          {{N}} articles checked
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━

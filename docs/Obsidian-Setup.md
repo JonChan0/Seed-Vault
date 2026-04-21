@@ -14,7 +14,6 @@ The `type` frontmatter field controls node color in Obsidian's graph view:
 |------|-------|----------|
 | `concept` | Blue | Synthesized concept articles |
 | `source-summary` | Green | One summary per `raw/` file |
-| `topic` | Purple | Cluster hub pages |
 | `visualization` | Orange | HTML viz wrapper pages |
 
 ## Templates

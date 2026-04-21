@@ -247,28 +247,6 @@ def build_stats() -> dict:
 
     singleton_tags = sum(1 for c in tag_counter.values() if c == 1)
 
-    # Concepts without a topic hub link
-    topic_hub_slugs: set[str] = set()
-    for p in files:
-        if "topics" in str(p):
-            topic_hub_slugs.add(_slug(p.stem.replace("-", " ").replace("_", " ").title()))
-            fm = parse_file(p)
-            t = fm.get("title")
-            if t:
-                topic_hub_slugs.add(_slug(str(t)))
-
-    concepts_without_hub = 0
-    for p in files:
-        if "concepts" not in str(p):
-            continue
-        try:
-            text = p.read_text(encoding="utf-8")
-        except (OSError, UnicodeDecodeError):
-            continue
-        linked_topics = {_slug(t) for t in _WIKILINK_RE.findall(text)}
-        if not linked_topics.intersection(topic_hub_slugs):
-            concepts_without_hub += 1
-
     return {
         "generated": date.today().isoformat(),
         "total": total,
@@ -289,7 +267,6 @@ def build_stats() -> dict:
         "gaps": {
             "raw_without_summary": raw_without_summary,
             "singleton_tags": singleton_tags,
-            "concepts_without_hub": concepts_without_hub,
         },
     }
 
@@ -319,7 +296,6 @@ def format_markdown(stats: dict) -> str:
     lines.append(
         f"- Concepts: {tc.get('concept', 0)} | "
         f"Sources: {tc.get('source-summary', 0)} | "
-        f"Topics: {tc.get('topic', 0)} | "
         f"Viz: {tc.get('visualization', 0)} | "
         f"Output: {tc.get('output', 0)}"
     )
@@ -371,7 +347,6 @@ def format_markdown(stats: dict) -> str:
     gaps = stats["gaps"]
     lines.append(f"- {gaps['raw_without_summary']} raw files without source summaries")
     lines.append(f"- {gaps['singleton_tags']} singleton tags")
-    lines.append(f"- {gaps['concepts_without_hub']} concepts without topic hub")
     lines.append("")
 
     return "\n".join(lines)
