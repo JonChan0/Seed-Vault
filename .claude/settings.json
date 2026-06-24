@@ -1,0 +1,16 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash _vault/hooks/check-new-raw.sh",
+            "timeout": 15,
+            "statusMessage": "Checking raw/ for new sources..."
+          }
+        ]
+      }
+    ]
+  }
+}
