@@ -50,17 +50,31 @@ fi
 claude_installed=0
 claude_updated=0
 
+# Clean up stale flat-file skill links from older installers
+# (.claude/skills/<name>.md). Claude Code only loads the directory layout
+# .claude/skills/<name>/SKILL.md, so those flat links never registered.
+stale_removed=0
+for stale in "$CLAUDE_SKILLS_DIR"/vault-*.md; do
+    [ -e "$stale" ] || [ -L "$stale" ] || continue
+    rm -f "$stale"; echo "  ✗ Removed stale flat link: $(basename "$stale")"
+    stale_removed=$((stale_removed + 1))
+done
+[ "$stale_removed" -gt 0 ] && echo ""
+
 for skill_dir in "$SCRIPT_DIR"/vault-*/; do
     [ -d "$skill_dir" ] || continue
     skill_name=$(basename "$skill_dir")
     skill_md="$skill_dir/SKILL.md"
-    target="$CLAUDE_SKILLS_DIR/$skill_name.md"
+    target_dir="$CLAUDE_SKILLS_DIR/$skill_name"
+    target="$target_dir/SKILL.md"
 
     [ -f "$skill_md" ] || { echo "  ⚠ Skipped:   $skill_name (no SKILL.md found)"; continue; }
 
-    # Build a relative path from .claude/skills/ to _vault/vault-*/SKILL.md
-    # .claude/skills/ is two levels below VAULT_ROOT, _vault/ is one level below
-    rel_path="../../_vault/$skill_name/SKILL.md"
+    mkdir -p "$target_dir"
+
+    # Relative path from .claude/skills/<name>/ to _vault/<name>/SKILL.md.
+    # .claude/skills/<name>/ is three levels below VAULT_ROOT; _vault/ is one.
+    rel_path="../../../_vault/$skill_name/SKILL.md"
 
     if [ -L "$target" ]; then
         current="$(readlink "$target" 2>/dev/null || true)"
