@@ -57,10 +57,10 @@ Write a thorough answer using only what's in the wiki:
 ### Evidence from the Wiki
 
 **{{Sub-question or aspect}}**
-According to [[Concept Article]], ... [[Summary - Source]] adds that ...
+According to [[concept-article|Concept Article]], ... [[summary-source|Summary - Source]] adds that ...
 
 **{{Another aspect}}**
-[[Related Concept]] covers ... The key sources are [[Summary - X]] and [[Summary - Y]].
+[[related-concept|Related Concept]] covers ... The key sources are [[summary-x|Summary - X]] and [[summary-y|Summary - Y]].
 
 ### Knowledge Gaps
 The wiki doesn't currently cover:
@@ -72,11 +72,11 @@ The wiki doesn't currently cover:
 - {{Adjacent question the wiki can answer}}
 
 ### Sources Consulted
-- [[Concept Name]]
-- [[Summary - Source Title]]
+- [[concept-name|Concept Name]]
+- [[summary-source-title|Summary - Source Title]]
 ```
 
-**Citation style**: Always use `[[wikilinks]]` to cite. If quoting a specific claim, write: `"quote" — [[Summary - Source]]`
+**Citation style**: Always use aliased `[[kebab-stem|Title]]` wikilinks to cite. If quoting a specific claim, write: `"quote" — [[summary-source|Summary - Source]]`
 
 **Epistemic honesty**: If the wiki has conflicting information, present both sides. If information is unverified (status: draft), say so.
 
@@ -91,8 +91,9 @@ Save to `outputs/qa-{{concept}}-{{today}}.md` with frontmatter:
 title: "Q&A: {{Question}}"
 type: output
 created: {{today}}
+updated: {{today}}
 query: "{{original question}}"
-sources_consulted: ["[[Article]]", "[[Article]]"]
+sources_consulted: ["[[article-stem|Article Title]]", "[[other-stem|Other Title]]"]
 tags: [output, qa]
 ---
 ```

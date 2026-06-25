@@ -73,6 +73,7 @@ Save `outputs/lint-{{today}}.md`:
 title: "Lint Report: {{today}}"
 type: output
 created: {{today}}
+updated: {{today}}
 tags: [output, lint]
 ---
 

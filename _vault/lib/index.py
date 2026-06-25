@@ -4,7 +4,7 @@ index.py — Index generator for the Seed Vault wiki.
 Scans wiki/**/*.md, groups articles by type, and writes wiki/_index.md.
 Optionally rebuilds the qmd collection index.
 Also detects and removes orphaned source summaries (whose raw/ file was deleted),
-cascading to concept and topic articles that become empty as a result.
+cascading to concept articles that become empty as a result.
 
 Usage:
     uv run python _vault/lib/index.py [--rebuild-qmd] [--dry-run] [--no-cleanup]
@@ -19,6 +19,7 @@ import subprocess
 import sys
 from collections import defaultdict
 from datetime import date, datetime
+from functools import lru_cache
 from pathlib import Path
 
 # ---------------------------------------------------------------------------
@@ -38,29 +39,20 @@ EXCLUDED_NAMES = {"_index.md", "_log.md", "_migration-log.md", "_catalog.md"}
 EXCLUDED_SUFFIXES = {".base"}
 
 # ---------------------------------------------------------------------------
-# Frontmatter helpers — prefer shared module, fall back to regex
+# Frontmatter helpers
 # ---------------------------------------------------------------------------
 
-# Try to import the python-frontmatter library directly for write operations.
-try:
-    import frontmatter as _frontmatter_lib
-    _HAS_FM_LIB = True
-except ImportError:
-    _HAS_FM_LIB = False
+import frontmatter as _frontmatter_lib  # noqa: E402
 
-# Add vault root to path to allow relative imports of _vault.lib
+# Add vault root to path so we can import _vault.lib.frontmatter
 sys.path.append(str(VAULT_ROOT))
 
-try:
-    from _vault.lib.frontmatter import (
-        parse_file, 
-        scan_directory,
-        slugify,
-        resolve_link
-    )
-except ImportError as e:
-    print(f"ERROR: Could not import _vault.lib.frontmatter: {e}")
-    sys.exit(1)
+from _vault.lib.frontmatter import (  # noqa: E402
+    parse_file,
+    scan_directory,
+    slugify,
+    resolve_link,
+)
 
 
 # ---------------------------------------------------------------------------
@@ -244,49 +236,57 @@ def print_stats(groups: dict[str, list[dict]], previous_count: int) -> None:
 # Orphaned-source cleanup
 # ---------------------------------------------------------------------------
 
+def _raw_link_slugs(source_value) -> list[str]:
+    """Slugified raw/* stems found inside a frontmatter sources entry."""
+    m = re.search(r"\[\[raw/([^\]#|]+)", str(source_value))
+    return [slugify(Path(m.group(1).strip()).stem)] if m else []
+
+
 def find_orphaned_summaries() -> list[Path]:
     """Return wiki/sources/summary-*.md files whose raw/ counterpart no longer exists."""
     if not SOURCES_DIR.exists():
         return []
-    
-    # Get active raw stems (slugified for consistency)
-    active_raw_slugs = {slugify(p.stem) for p in RAW_DIR.iterdir() if p.is_file()}
+
+    active_raw_slugs = (
+        {slugify(p.stem) for p in RAW_DIR.iterdir() if p.is_file()}
+        if RAW_DIR.exists()
+        else set()
+    )
     orphans = []
-    
+
     for summary in sorted(SOURCES_DIR.glob("summary-*.md")):
         # 1. Check normalized filename convention: summary-foo.md ↔ raw/foo.*
         summary_stem = summary.stem[len("summary-"):]
         if slugify(summary_stem) in active_raw_slugs:
             continue
-            
+
         # 2. Robust check: parse frontmatter and look for [[raw/filename]] in sources
-        fm = parse_file(summary)
-        sources = fm.get("sources", []) or []
-        found_active_source = False
-        for src in sources:
-            # Match [[raw/filename.ext]] or [[raw/filename]]
-            m = re.search(r"\[\[raw/([^\]#|]+)", str(src))
-            if m:
-                src_stem = Path(m.group(1).strip()).stem
-                if slugify(src_stem) in active_raw_slugs:
-                    found_active_source = True
-                    break
-        
-        if not found_active_source:
+        sources = _cached_parse_file(summary).get("sources", []) or []
+        has_active = any(
+            slug in active_raw_slugs
+            for src in sources
+            for slug in _raw_link_slugs(src)
+        )
+        if not has_active:
             orphans.append(summary)
-            
+
     return orphans
+
+
+@lru_cache(maxsize=None)
+def _cached_parse_file(path: Path) -> dict:
+    return parse_file(path)
 
 
 def _get_title(path: Path) -> str:
     """Return the frontmatter title of an article, falling back to stem-based guess."""
-    fm = parse_file(path)
+    fm = _cached_parse_file(path)
     return str(fm.get("title", path.stem.replace("-", " ").title())).strip()
 
 
 def _get_sources_list(path: Path) -> list[str]:
     """Return the titles listed in the sources: frontmatter field of path."""
-    fm = parse_file(path)
+    fm = _cached_parse_file(path)
     sources = fm.get("sources", []) or []
     result = []
     for src in sources:
@@ -335,45 +335,12 @@ def _remove_source_from_frontmatter(path: Path, title: str) -> None:
     escaped = re.escape(title)
     wikilink_pat = re.compile(r"\[\[" + escaped + r"(?:[#|][^\]]+)?\]\]")
 
-    if _HAS_FM_LIB:
-        try:
-            with open(path, encoding="utf-8") as fh:
-                post = _frontmatter_lib.load(fh)
-            sources = list(post.get("sources", []) or [])
-            post["sources"] = [s for s in sources if not wikilink_pat.search(str(s))]
-            with open(path, "w", encoding="utf-8") as fh:
-                fh.write(_frontmatter_lib.dumps(post))
-            return
-        except Exception:
-            pass  # fall through to regex approach
-
-    # Regex fallback: remove the entry from the inline or block YAML list.
-    text = path.read_text(encoding="utf-8")
-    # Block-style: "  - "[[Title]]"\n" or "  - '[[Title]]'\n"
-    text = re.sub(
-        r"^[ \t]*-[ \t]+['\"]?\[\[" + escaped + r"(?:[#|][^\]]+)?\]\]['\"]?[ \t]*\n",
-        "",
-        text,
-        flags=re.MULTILINE,
-    )
-    # Inline-style inside [...]: remove the entry plus surrounding comma/space
-    text = re.sub(
-        r",\s*['\"]?\[\[" + escaped + r"(?:[#|][^\]]+)?\]\]['\"]?",
-        "",
-        text,
-    )
-    text = re.sub(
-        r"['\"]?\[\[" + escaped + r"(?:[#|][^\]]+)?\]\]['\"]?\s*,",
-        "",
-        text,
-    )
-    # Lone entry: [[Title]] with no comma neighbours
-    text = re.sub(
-        r"['\"]?\[\[" + escaped + r"(?:[#|][^\]]+)?\]\]['\"]?",
-        "",
-        text,
-    )
-    path.write_text(text, encoding="utf-8")
+    with open(path, encoding="utf-8") as fh:
+        post = _frontmatter_lib.load(fh)
+    sources = list(post.get("sources", []) or [])
+    post["sources"] = [s for s in sources if not wikilink_pat.search(str(s))]
+    with open(path, "w", encoding="utf-8") as fh:
+        fh.write(_frontmatter_lib.dumps(post))
 
 
 def _remove_wikilink_from_body(path: Path, title: str) -> None:
@@ -534,6 +501,14 @@ def cleanup_orphaned_sources(dry_run: bool = False) -> dict:
     }
 
 
+def _print_path_section(label: str, paths: list[str]) -> None:
+    if not paths:
+        return
+    print(f"  {label} ({len(paths)}):")
+    for p in paths:
+        print(f"    - {p}")
+
+
 def print_cleanup_report(report: dict, dry_run: bool = False) -> None:
     """Print a human-readable cleanup report to stdout."""
     orphans = report.get("orphaned_summaries", [])
@@ -547,27 +522,11 @@ def print_cleanup_report(report: dict, dry_run: bool = False) -> None:
         print(f"    - {p}")
 
     if dry_run:
-        would_delete = report.get("would_delete", [])
-        would_modify = report.get("would_modify", [])
-        if would_delete:
-            print(f"  Would delete ({len(would_delete)}):")
-            for p in would_delete:
-                print(f"    - {p}")
-        if would_modify:
-            print(f"  Would modify ({len(would_modify)}):")
-            for p in would_modify:
-                print(f"    - {p}")
+        _print_path_section("Would delete", report.get("would_delete", []))
+        _print_path_section("Would modify", report.get("would_modify", []))
     else:
-        deleted = report.get("deleted", [])
-        modified = report.get("modified", [])
-        if deleted:
-            print(f"  Deleted ({len(deleted)}):")
-            for p in deleted:
-                print(f"    - {p}")
-        if modified:
-            print(f"  Modified ({len(modified)}):")
-            for p in modified:
-                print(f"    - {p}")
+        _print_path_section("Deleted", report.get("deleted", []))
+        _print_path_section("Modified", report.get("modified", []))
     print()
 
 

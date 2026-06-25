@@ -93,11 +93,11 @@ framework_version: "{{read from _vault/VERSION}}"
 - {{Insight 3}}
 
 ## Data Sources
-- [[Concept Name]]
-- [[Summary - Source Title]]
+- [[concept-name|Concept Name]]
+- [[summary-source-title|Summary - Source Title]]
 
 ## See Also
-- [[Related Concept]]
+- [[related-concept|Related Concept]]
 ```
 
 ---
@@ -111,7 +111,7 @@ uv run python _vault/lib/index.py
 
 Or manually add to `wiki/_index.md` under `## Visualizations`:
 ```
-- [[Viz - {{Title}}]] — {{one-line description}}
+- [[viz-{{name}}|Viz - {{Title}}]] — {{one-line description}}
 ```
 
 ---

@@ -98,7 +98,7 @@ The sanitized name is used for **both** the file name on disk and any `[[wikilin
 
 > Example: "Lilly Inks R&D Collab Worth Up to $2.75B" →
 > file: `lilly-inks-rd-collab-worth-up-to-275b.md`
-> wikilink: `[[raw/lilly-inks-rd-collab-worth-up-to-275b]]`
+> wikilink: `[[raw/lilly-inks-rd-collab-worth-up-to-275b|Lilly Inks R&D Collab Worth Up to $2.75B]]`
 > title frontmatter: `"Lilly Inks R&D Collab Worth Up to $2.75B"` ✓
 
 Check if `raw/{{name}}.md` already exists. If so, ask the user whether to overwrite or create `{{name}}-2.md`.
@@ -137,7 +137,8 @@ title: "Summary - {{Full Title}}"
 type: source-summary
 created: {{today}}
 updated: {{today}}
-sources: ["[[raw/{{name}}]]"]
+sources: ["[[raw/{{name}}|{{Full Title}}]]"]
+original_source: "[[raw/{{name}}|{{Full Title}}]]"
 source_url: "{{url}}"
 author: "{{author}}"
 tags: [{{inferred tags}}]
@@ -159,10 +160,10 @@ framework_version: "{{read from _vault/VERSION}}"
 ## Concepts Extracted
 *(List concepts this source informs, as [[wikilinks]] — link to existing concept articles if they exist, or flag new ones needed)*
 
-- [[Concept Name]] *(exists | needs article)*
+- [[concept-name|Concept Name]] *(exists | needs article)*
 
 ## Raw Source
-[[raw/{{name}}]]
+[[raw/{{name}}|{{Full Title}}]]
 ```
 
 To find existing concept articles for the "Concepts Extracted" section:

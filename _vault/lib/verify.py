@@ -42,31 +42,19 @@ except ImportError:
 
 FUZZY_THRESHOLD = 75
 
+# Per-run cache of source file line lists, populated on first access in
+# verify_claim. Cleared at the start of each verify_article call.
+_source_lines_cache: dict[Path, list[str]] = {}
+
 # ---------------------------------------------------------------------------
-# Frontmatter helpers — prefer shared module, fall back to regex
+# Frontmatter helpers
 # ---------------------------------------------------------------------------
 
-try:
-    from _vault.lib.frontmatter import parse_file as _fm_parse_file
+# Add vault root to sys.path so this script runs both as `uv run python ...`
+# and as a direct module import.
+sys.path.append(str(VAULT_ROOT))
 
-    def parse_file(path: Path) -> dict:
-        return _fm_parse_file(path)
-
-except ImportError:
-    import yaml  # type: ignore
-
-    _FM_RE = re.compile(r"^---\s*\n(.*?)\n---\s*\n", re.DOTALL)
-
-    def parse_file(path: Path) -> dict:  # type: ignore[misc]
-        try:
-            text = path.read_text(encoding="utf-8")
-            m = _FM_RE.match(text)
-            if not m:
-                return {}
-            result = yaml.safe_load(m.group(1))
-            return result if isinstance(result, dict) else {}
-        except Exception:
-            return {}
+from _vault.lib.frontmatter import parse_file  # noqa: E402
 
 
 def _read_text(path: Path) -> str:
@@ -179,14 +167,19 @@ def extract_claims(body: str) -> list[dict[str, str]]:
 # Source resolution
 # ---------------------------------------------------------------------------
 
+def _strip_wikilink_brackets(wikilink: str) -> str:
+    """Strip [[ ]], aliased | suffix, and # section anchor from a wikilink."""
+    inner = re.sub(r"^\[\[|\]\]$", "", wikilink).strip()
+    inner = inner.split("|", 1)[0].split("#", 1)[0]
+    return inner.strip()
+
+
 def _wikilink_to_source_path(wikilink: str) -> Path | None:
     """
-    Convert a wikilink like '[[Summary - Foo Bar]]' to the expected path
-    wiki/sources/summary-foo-bar.md, and return it if it exists.
+    Convert a wikilink like '[[summary-foo-bar|Summary - Foo Bar]]' to the
+    expected path wiki/sources/summary-foo-bar.md, and return it if it exists.
     """
-    # Strip [[ and ]] if present
-    title = re.sub(r"^\[\[|\]\]$", "", wikilink).strip()
-    # Convert to kebab-case filename
+    title = _strip_wikilink_brackets(wikilink)
     slug = re.sub(r"[^a-z0-9]+", "-", title.lower()).strip("-")
     candidate = WIKI_DIR / "sources" / f"{slug}.md"
     return candidate if candidate.exists() else None
@@ -207,18 +200,12 @@ def _find_raw_file_for_source(source_path: Path) -> Path | None:
     # 1. original_source — written by vault-ingest as "[[raw/name]]"
     orig = fm.get("original_source")
     if orig:
-        # Strip wikilink brackets: [[raw/foo]] → raw/foo
-        orig_str = re.sub(r"^\[\[|\]\]$", "", str(orig)).strip()
-        # Try with and without .md extension
+        orig_str = _strip_wikilink_brackets(str(orig))
         for suffix in ("", ".md"):
             for base in (VAULT_ROOT, RAW_DIR):
                 candidate = base / f"{orig_str}{suffix}"
                 if candidate.exists():
                     return candidate
-            # orig_str may already be "raw/name" — try from vault root only
-            candidate = VAULT_ROOT / f"{orig_str}{suffix}"
-            if candidate.exists():
-                return candidate
 
     # 2. Explicit raw_file or source_file field
     for field in ("raw_file", "source_file"):
@@ -236,7 +223,7 @@ def _find_raw_file_for_source(source_path: Path) -> Path | None:
     if isinstance(src_list, str):
         src_list = [src_list]
     for src in src_list:
-        src_str = re.sub(r"^\[\[|\]\]$", "", str(src)).strip()
+        src_str = _strip_wikilink_brackets(str(src))
         if "." in Path(src_str).suffix:
             for base in (VAULT_ROOT, RAW_DIR):
                 candidate = base / src_str
@@ -295,7 +282,7 @@ def resolve_sources(article_fm: dict) -> tuple[list[Path], list[str]]:
                 )
         else:
             # Wikilink didn't resolve to a summary — try raw/ stem match directly
-            title = re.sub(r"^\[\[|\]\]$", "", src_str).strip()
+            title = _strip_wikilink_brackets(src_str)
             slug = re.sub(r"[^a-z0-9]+", "-", title.lower()).strip("-")
             found = False
             if RAW_DIR.exists():
@@ -325,21 +312,17 @@ def _split_lines(text: str) -> list[str]:
     return text.splitlines()
 
 
-def _search_in_file(
-    value: str, file_path: Path
+def _search_in_lines(
+    value: str, lines: list[str]
 ) -> tuple[str, str | None, int | None]:
-    """
-    Search for *value* in *file_path*.
+    """Search pre-split *lines* for *value*.
 
     Returns:
         (match_type, matched_text, score)
         match_type: "exact" | "partial" | "none"
     """
-    text = _read_text(file_path)
-    if not text:
+    if not lines:
         return "none", None, None
-
-    lines = _split_lines(text)
 
     # --- Exact match (substring search, case-sensitive first, then case-insensitive)
     for line in lines:
@@ -396,7 +379,11 @@ def verify_claim(
     }
 
     for file_path in source_files:
-        match_type, matched_text, score = _search_in_file(value, file_path)
+        lines = _source_lines_cache.get(file_path)
+        if lines is None:
+            lines = _split_lines(_read_text(file_path))
+            _source_lines_cache[file_path] = lines
+        match_type, matched_text, score = _search_in_lines(value, lines)
         if match_type == "exact":
             return {
                 "claim_text": claim_text,
@@ -438,6 +425,7 @@ def verify_article(article_path: Path) -> dict[str, Any]:
     Returns a dict with keys:
         title, article, claims_found, results, summary
     """
+    _source_lines_cache.clear()
     article_path = article_path.resolve()
     text = _read_text(article_path)
     fm = parse_file(article_path)

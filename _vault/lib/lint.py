@@ -1,7 +1,7 @@
 """
 lint.py — Structural lint checker for the Seed Vault wiki.
 
-Performs 9 deterministic checks with NO LLM involvement.
+Performs 7 deterministic checks with NO LLM involvement.
 """
 
 from __future__ import annotations
@@ -12,6 +12,7 @@ import re
 import sys
 from collections import defaultdict
 from datetime import date
+from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
@@ -39,11 +40,17 @@ from _vault.lib.frontmatter import (
 # Shared data-loading helpers
 # ---------------------------------------------------------------------------
 
+@lru_cache(maxsize=None)
 def _read_text(path: Path) -> str:
     try:
         return path.read_text(encoding="utf-8")
     except (OSError, UnicodeDecodeError):
         return ""
+
+
+@lru_cache(maxsize=None)
+def _cached_parse_file(path: Path) -> dict:
+    return parse_file(path)
 
 
 def _strip_frontmatter(text: str) -> str:
@@ -54,10 +61,11 @@ def _strip_frontmatter(text: str) -> str:
     return text
 
 
-def _all_wiki_files() -> list[Path]:
+@lru_cache(maxsize=1)
+def _all_wiki_files() -> tuple[Path, ...]:
     if not WIKI_DIR.exists():
-        return []
-    return list(WIKI_DIR.rglob("*.md"))
+        return ()
+    return tuple(WIKI_DIR.rglob("*.md"))
 
 
 def _content_wiki_files() -> list[Path]:
@@ -66,8 +74,8 @@ def _content_wiki_files() -> list[Path]:
     return [f for f in _all_wiki_files() if f.name not in skip_names]
 
 
-def _build_title_map() -> dict[str, Path]:
-    """Uses the centralized build_vault_map logic."""
+@lru_cache(maxsize=1)
+def _cached_vault_map() -> dict[str, Path]:
     return build_vault_map(WIKI_DIR)
 
 
@@ -77,6 +85,26 @@ def _extract_wikilinks(text: str) -> list[str]:
     Returns only the target part (before | or #).
     """
     return re.findall(r"\[\[([^\]#|]+)", text)
+
+
+def _frontmatter_wikilink_targets(fm: dict, field: str, prefix: str = "") -> list[str]:
+    """Extract wikilink targets from a frontmatter field (scalar or list).
+
+    If ``prefix`` is given, only links whose target starts with that prefix are
+    returned, with the prefix stripped (e.g. prefix='raw/' returns the stem
+    after 'raw/').
+    """
+    val = fm.get(field)
+    if not val:
+        return []
+    candidates = val if isinstance(val, list) else [val]
+    pattern = re.compile(r"\[\[" + re.escape(prefix) + r"([^\]#|]+)")
+    targets: list[str] = []
+    for cand in candidates:
+        m = pattern.search(str(cand))
+        if m:
+            targets.append(m.group(1).strip())
+    return targets
 
 
 def _parse_date(value: Any) -> date | None:
@@ -95,34 +123,25 @@ def _parse_date(value: Any) -> date | None:
 # ---------------------------------------------------------------------------
 
 def check_broken_wikilinks() -> dict:
-    vault_map = _build_title_map()
+    vault_map = _cached_vault_map()
     issues: list[str] = []
 
     for f in _all_wiki_files():
         text = _read_text(f)
-        fm = parse_file(f)
+        fm = _cached_parse_file(f)
         body = _strip_frontmatter(text)
         rel = f.relative_to(VAULT_ROOT)
 
-        # 1. Check body wikilinks
-        links = _extract_wikilinks(body)
-        for target in links:
+        for target in _extract_wikilinks(body):
             if not resolve_link(target, vault_map):
                 issues.append(f"{rel}: broken wikilink [[{target}]]")
 
-        # 2. Check frontmatter wikilinks
         for field in ("sources", "original_source"):
-            val = fm.get(field)
-            if not val:
-                continue
-            
-            candidates = val if isinstance(val, list) else [val]
-            for cand in candidates:
-                m = re.search(r"\[\[([^\]#|]+)", str(cand))
-                if m:
-                    target = m.group(1).strip()
-                    if not resolve_link(target, vault_map):
-                        issues.append(f"{rel}: broken wikilink in frontmatter field '{field}': [[{m.group(1).strip()}]]")
+            for target in _frontmatter_wikilink_targets(fm, field):
+                if not resolve_link(target, vault_map):
+                    issues.append(
+                        f"{rel}: broken wikilink in frontmatter field '{field}': [[{target}]]"
+                    )
 
     return {
         "check": "broken_wikilinks",
@@ -137,35 +156,33 @@ def check_broken_wikilinks() -> dict:
 # ---------------------------------------------------------------------------
 
 def check_orphan_pages() -> dict:
-    skip_names = {"_index.md", "_catalog.md", "_migration-log.md", "_log.md"}
-    all_files = _all_wiki_files()
-    content_files = [f for f in all_files if f.name not in skip_names]
+    # Iterate content files only — _index.md mechanically links every article,
+    # so counting it as a backlink source would mask true orphans.
+    content_files = _content_wiki_files()
 
-    vault_map = build_vault_map(WIKI_DIR)
+    vault_map = _cached_vault_map()
     incoming: dict[Path, int] = {f: 0 for f in content_files}
 
-    for f in all_files:
+    def bump(target: str, source: Path) -> None:
+        resolved = resolve_link(target, vault_map)
+        if resolved and resolved in incoming and resolved != source:
+            incoming[resolved] += 1
+
+    for f in content_files:
         text = _read_text(f)
-        fm = parse_file(f)
+        fm = _cached_parse_file(f)
         body = _strip_frontmatter(text)
-        
-        links = _extract_wikilinks(body)
-        for target in links:
-            resolved = resolve_link(target, vault_map)
-            if resolved and resolved in incoming and resolved != f:
-                incoming[resolved] += 1
 
-        for src in fm.get("sources", []) or []:
-            m = re.search(r"\[\[([^\]#|]+)", str(src))
-            if m:
-                resolved = resolve_link(m.group(1).strip(), vault_map)
-                if resolved and resolved in incoming and resolved != f:
-                    incoming[resolved] += 1
+        for target in _extract_wikilinks(body):
+            bump(target, f)
+        for target in _frontmatter_wikilink_targets(fm, "sources"):
+            bump(target, f)
 
-    issues = []
-    for f, count in incoming.items():
-        if count == 0:
-            issues.append(str(f.relative_to(VAULT_ROOT)))
+    issues = [
+        str(f.relative_to(VAULT_ROOT))
+        for f, count in incoming.items()
+        if count == 0
+    ]
 
     return {
         "check": "orphan_pages",
@@ -180,7 +197,7 @@ def check_orphan_pages() -> dict:
 # ---------------------------------------------------------------------------
 
 def check_missing_backlinks() -> dict:
-    vault_map = build_vault_map(WIKI_DIR)
+    vault_map = _cached_vault_map()
 
     outgoing: dict[Path, set[Path]] = {}
     for f in _all_wiki_files():
@@ -206,7 +223,7 @@ def check_missing_backlinks() -> dict:
             if a not in b_targets:
                 a_rel = a.relative_to(VAULT_ROOT)
                 b_rel = b.relative_to(VAULT_ROOT)
-                a_title = parse_file(a).get("title") or a.stem.replace("-", " ").title()
+                a_title = _cached_parse_file(a).get("title") or a.stem.replace("-", " ").title()
                 issues.append(
                     f"{b_rel}: missing backlink to [[{a_title}]] (linked from {a_rel})"
                 )
@@ -215,7 +232,7 @@ def check_missing_backlinks() -> dict:
         "check": "missing_backlinks",
         "severity": "warning",
         "issues": issues,
-        "auto_fixable": True,
+        "auto_fixable": False,
     }
 
 
@@ -224,31 +241,26 @@ def check_missing_backlinks() -> dict:
 # ---------------------------------------------------------------------------
 
 def check_stale_articles() -> dict:
-    vault_map = build_vault_map(WIKI_DIR)
+    vault_map = _cached_vault_map()
     issues: list[str] = []
 
     for f in _content_wiki_files():
-        fm = parse_file(f)
+        fm = _cached_parse_file(f)
         article_updated = _parse_date(fm.get("updated"))
         if article_updated is None:
             continue
 
-        sources = fm.get("sources", []) or []
-        for src in sources:
-            m = re.search(r"\[\[([^\]#|]+)", str(src))
-            if not m:
-                continue
-            
-            src_path = resolve_link(m.group(1).strip(), vault_map)
+        for target in _frontmatter_wikilink_targets(fm, "sources"):
+            src_path = resolve_link(target, vault_map)
             if src_path is None:
                 continue
-                
-            src_fm = parse_file(src_path)
+
+            src_fm = _cached_parse_file(src_path)
             src_updated = _parse_date(src_fm.get("updated"))
             if src_updated is not None and src_updated > article_updated:
                 issues.append(
                     f"{f.relative_to(VAULT_ROOT)}: stale — source "
-                    f"[[{m.group(1).strip()}]] updated {src_updated} "
+                    f"[[{target}]] updated {src_updated} "
                     f"> article updated {article_updated}"
                 )
                 break
@@ -279,19 +291,13 @@ def check_index_sync() -> dict:
     index_text = _read_text(INDEX_FILE)
     index_targets_raw = _extract_wikilinks(_strip_frontmatter(index_text))
     
-    vault_map = build_vault_map(WIKI_DIR)
+    vault_map = _cached_vault_map()
     
     for f in _content_wiki_files():
-        fm = parse_file(f)
+        fm = _cached_parse_file(f)
         title = fm.get("title", f.stem)
-        
-        found = False
-        for target in index_targets_raw:
-            if resolve_link(target, vault_map) == f:
-                found = True
-                break
-        
-        if not found:
+
+        if not any(resolve_link(t, vault_map) == f for t in index_targets_raw):
             issues.append(
                 f"article not in _index.md: [[{title}]] ({f.relative_to(VAULT_ROOT)})"
             )
@@ -327,17 +333,10 @@ def check_raw_coverage() -> dict:
     sources_dir = WIKI_DIR / "sources"
     if sources_dir.exists():
         for summary in sources_dir.rglob("*.md"):
-            fm = parse_file(summary)
-            orig = str(fm.get("original_source", "") or "")
-            sources = fm.get("sources", []) or []
-            if isinstance(sources, str):
-                sources = [sources]
-            
-            candidates = [orig] + [str(s) for s in sources]
-            for candidate in candidates:
-                m = re.search(r"\[\[raw/([^\]#|]+)", candidate)
-                if m:
-                    covered_stems.add(slugify(Path(m.group(1)).stem))
+            fm = _cached_parse_file(summary)
+            for field in ("original_source", "sources"):
+                for raw_path in _frontmatter_wikilink_targets(fm, field, prefix="raw/"):
+                    covered_stems.add(slugify(Path(raw_path).stem))
 
     for raw_file in sorted(RAW_DIR.rglob("*.md")):
         if slugify(raw_file.stem) not in covered_stems:
@@ -362,7 +361,7 @@ def check_tag_frequency() -> dict:
     tag_files: dict[str, list[str]] = defaultdict(list)
 
     for f in _content_wiki_files():
-        fm = parse_file(f)
+        fm = _cached_parse_file(f)
         tags = fm.get("tags", []) or []
         if isinstance(tags, str):
             tags = [t.strip() for t in tags.split(",")]

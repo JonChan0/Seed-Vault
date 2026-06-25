@@ -234,7 +234,6 @@ dependencies = [
     { name = "opendataloader-pdf" },
     { name = "pypandoc" },
     { name = "python-frontmatter" },
-    { name = "pyyaml" },
     { name = "thefuzz" },
 ]
 
@@ -248,7 +247,6 @@ requires-dist = [
     { name = "opendataloader-pdf", specifier = ">=2.0" },
     { name = "pypandoc", specifier = ">=1.14" },
     { name = "python-frontmatter", specifier = ">=1.1" },
-    { name = "pyyaml", specifier = ">=6.0" },
     { name = "thefuzz", specifier = ">=0.22" },
 ]
 

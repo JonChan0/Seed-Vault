@@ -66,7 +66,7 @@ title: "{{Concept Name}}"
 type: concept
 created: {{today}}
 updated: {{today}}
-sources: ["[[Summary - Source Title]]", "[[Summary - Another Source]]"]
+sources: ["[[summary-source-title|Summary - Source Title]]", "[[summary-another-source|Summary - Another Source]]"]
 tags: [{{concept/subconcept}}, {{another-tag}}]
 status: draft
 aliases: ["{{alternate name}}", "{{abbreviation}}"]
@@ -83,7 +83,7 @@ web_sources: ["{{url-1}}", "{{url-2}}"]
 ## Key Details
 
 ### {{Aspect 1}}
-*(Detailed explanation with inline citations: "According to [[Summary - Source Title]], ..." and web-verified claims marked [^web-N])*
+*(Detailed explanation with inline citations: "According to [[summary-source-title|Summary - Source Title]], ..." and web-verified claims marked [^web-N])*
 
 ### {{Aspect 2}}
 ...
@@ -94,16 +94,16 @@ web_sources: ["{{url-1}}", "{{url-2}}"]
 ## Connections
 
 ### Related Concepts
-- [[Related Concept A]] — *(one-line relationship description)*
-- [[Related Concept B]] — *(one-line relationship description)*
+- [[related-concept-a|Related Concept A]] — *(one-line relationship description)*
+- [[related-concept-b|Related Concept B]] — *(one-line relationship description)*
 
 ### See Also
-- [[Another Concept]]
+- [[another-concept|Another Concept]]
 
 ## Source Material
 *(Sources that inform this article)*
-- [[Summary - Source Title]] — *(what this source contributes)*
-- [[Summary - Another Source]] — *(what this source contributes)*
+- [[summary-source-title|Summary - Source Title]] — *(what this source contributes)*
+- [[summary-another-source|Summary - Another Source]] — *(what this source contributes)*
 
 ## External References
 *(Web sources consulted during compilation — numbered to match [^web-N] inline markers)*
@@ -129,7 +129,7 @@ When a new source is ingested that adds to an existing concept:
 3. Use Edit to:
    - Add new information to the relevant sections
    - Add the new source to the `sources:` frontmatter
-   - Add `[[Summary - New Source]]` to the "Source Material" section
+   - Add `[[summary-new-source|Summary - New Source]]` to the "Source Material" section
    - Update `updated:` date
 4. Update the source summary to backlink to this concept
 

@@ -64,13 +64,15 @@ Track progress: "Compiled {{N}}/{{total}} concept articles."
 
 ## Step 5: Rebuild Index (Deterministic)
 
-Run the index engine:
+Run the index engine. Pass `--no-cleanup` so mid-pipeline summaries that have not
+yet been wired up to concept articles are not eagerly deleted as orphans:
 
 ```bash
-uv run python _vault/lib/index.py --rebuild-qmd
+uv run python _vault/lib/index.py --rebuild-qmd --no-cleanup
 ```
 
 This regenerates `wiki/_index.md` and rebuilds the qmd search index.
+Run `vault-lint` afterwards to handle orphaned-source cleanup at end-of-pipeline.
 
 ---
 
@@ -90,7 +92,7 @@ This extracts verifiable claims and matches them against raw sources.
 
 For each article, launch a subagent with `Agent(subagent_type="general-purpose")` containing ONLY:
 - The article content
-- The verify.py JSON output
+- The verify.py JSON output (including the `source_warnings` list)
 - The raw source file contents referenced by the article
 - These instructions:
 
@@ -100,14 +102,17 @@ You are a fact-checker. You have NO prior context about this wiki or its creatio
 Given:
 - ARTICLE: [article content]
 - SOURCE MATCH REPORT: [verify.py output]
+- SOURCE WARNINGS: [source_warnings list from verify.py — may be empty]
 - RAW SOURCES: [source files]
 
 Tasks:
-1. For each claim in the article, assess if the raw sources support it
-2. Flag claims with no source support as UNSUPPORTED
-3. Flag claims that contradict sources as CONTRADICTED
-4. Rate overall confidence: HIGH / MEDIUM / LOW
-5. Output a verification report in markdown
+1. If SOURCE WARNINGS is non-empty, the source resolution was incomplete —
+   note that vault-lint should be run for raw_coverage / broken_wikilinks issues
+2. For each claim in the article, assess if the raw sources support it
+3. Flag claims with no source support as UNSUPPORTED
+4. Flag claims that contradict sources as CONTRADICTED
+5. Rate overall confidence: HIGH / MEDIUM / LOW
+6. Output a verification report in markdown
 ```
 
 ### 6c: Process Verification Results
@@ -155,8 +160,8 @@ Index rebuilt:         Yes (+ qmd updated)
 Verification:          {{N}} articles checked
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 New concepts created:
-  - [[Concept A]]
-  - [[Concept B]]
+  - [[concept-a|Concept A]]
+  - [[concept-b|Concept B]]
 
 Verification issues:
   - {{issue if any, or "None — all claims supported"}}

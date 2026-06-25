@@ -149,7 +149,7 @@ def format_human(manifest: dict) -> str:
         f"Pipeline Assessment — {date_part}",
         "",
         f"Raw files scanned:      {stats['total_raw']}",
-        f"Source summaries found: {stats['total_raw'] - stats['new']}",
+        f"Already-summarized:     {stats['total_raw'] - stats['new']}",
         "",
     ]
 

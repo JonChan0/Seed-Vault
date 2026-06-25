@@ -24,7 +24,7 @@ This scans all wiki files, parses frontmatter, counts by type/status/tag, builds
 Read the engine's output and present it to the user. The report includes:
 
 - **Contents at a Glance**: Total articles by type and status
-- **Recently Updated**: Articles modified in the last 7 days
+- **Recently Updated**: 10 most recently updated articles, by `updated:` date
 - **Hub Nodes**: The 5 most-linked articles
 - **Orphan Pages**: Articles with no incoming links
 - **Tag Distribution**: Tag frequency across the wiki
@@ -53,6 +53,7 @@ Save to `outputs/digest-{{today}}.md` with frontmatter:
 title: "Wiki Digest: {{today}}"
 type: output
 created: {{today}}
+updated: {{today}}
 tags: [output, digest]
 ---
 ```

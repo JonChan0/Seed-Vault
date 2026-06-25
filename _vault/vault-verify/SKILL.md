@@ -84,7 +84,7 @@ Add or update a `## Verification` section:
 *Last verified: {{today}} by vault-verify*
 
 ### ✅ Supported Claims
-- "{{claim}}" — confirmed by [[Summary - Source]] and source matching
+- "{{claim}}" — confirmed by [[summary-source|Summary - Source]] and source matching
 
 ### ⚠️ Weakly Supported
 - "{{claim}}" — source mentions topic but doesn't confirm specific figure
@@ -137,6 +137,7 @@ Save `outputs/verification-{{today}}.md`:
 title: "Verification Report: {{today}}"
 type: output
 created: {{today}}
+updated: {{today}}
 tags: [output, verification]
 ---
 
@@ -153,18 +154,18 @@ tags: [output, verification]
 ### ❌ Contradictions
 | Article | Claim | Issue |
 |---------|-------|-------|
-| [[Article]] | "{{claim}}" | Contradicts source which says... |
+| [[article-stem\|Article Title]] | "{{claim}}" | Contradicts source which says... |
 
 ### ❓ Unsourced Claims
 | Article | Claim | Suggested action |
 |---------|-------|-----------------|
-| [[Article]] | "{{claim}}" | Ingest supporting source |
+| [[article-stem\|Article Title]] | "{{claim}}" | Ingest supporting source |
 
 ## Verified Articles
-{{list of articles now marked verified}}
+{{list of articles now marked verified, e.g. - [[article-stem|Article Title]]}}
 
 ## Recommended Sources to Ingest
-- {{Source content type}} — would resolve claims in [[Article A]], [[Article B]]
+- {{Source content type}} — would resolve claims in [[article-a|Article A]], [[article-b|Article B]]
 ```
 
 ---

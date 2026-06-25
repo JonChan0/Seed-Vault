@@ -34,54 +34,11 @@ _EXCLUDED_SUFFIXES = {".base"}
 _WIKILINK_RE = re.compile(r"\[\[([^\]|#\n]+?)(?:[|#][^\]]*?)?\]\]")
 
 # ---------------------------------------------------------------------------
-# Frontmatter import with regex fallback
+# Frontmatter import — share the project helper
 # ---------------------------------------------------------------------------
-try:
-    from _vault.lib.frontmatter import parse_file, scan_directory  # type: ignore
+sys.path.append(str(VAULT_ROOT))
 
-    _USE_LIB = True
-except ImportError:
-    _USE_LIB = False
-
-    _FM_RE = re.compile(r"^---\s*\n(.*?)\n---\s*\n", re.DOTALL)
-    _FIELD_RE = re.compile(r"^(\w[\w\-]*):\s*(.*)$", re.MULTILINE)
-    _LIST_ITEM_RE = re.compile(r"^\s*-\s+(.+)$", re.MULTILINE)
-
-    def _parse_yaml_value(raw: str) -> list[str] | str:
-        raw = raw.strip()
-        # Inline list: [a, b, c]
-        if raw.startswith("[") and raw.endswith("]"):
-            inner = raw[1:-1]
-            return [s.strip().strip('"').strip("'") for s in inner.split(",") if s.strip()]
-        # Quoted scalar
-        if (raw.startswith('"') and raw.endswith('"')) or (
-            raw.startswith("'") and raw.endswith("'")
-        ):
-            return raw[1:-1]
-        return raw
-
-    def parse_file(filepath: Path) -> dict:  # type: ignore[misc]
-        try:
-            text = Path(filepath).read_text(encoding="utf-8")
-        except (OSError, UnicodeDecodeError):
-            return {}
-        m = _FM_RE.match(text)
-        if not m:
-            return {}
-        block = m.group(1)
-        result: dict = {}
-        for key, raw in _FIELD_RE.findall(block):
-            result[key] = _parse_yaml_value(raw)
-        return result
-
-    def scan_directory(dirpath: Path, fields=None) -> list[dict]:  # type: ignore[misc]
-        results = []
-        for md_file in sorted(Path(dirpath).rglob("*.md")):
-            metadata = parse_file(md_file)
-            if fields is not None:
-                metadata = {k: metadata[k] for k in fields if k in metadata}
-            results.append({"path": str(md_file), "metadata": metadata})
-        return results
+from _vault.lib.frontmatter import parse_file  # noqa: E402
 
 
 # ---------------------------------------------------------------------------

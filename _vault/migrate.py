@@ -6,7 +6,7 @@ Applies structural migrations to wiki articles when the framework version change
 Normal update flow:
   1. git fetch upstream && git merge upstream/main
        → _vault/VERSION is now the new framework version
-       → wiki/_index.md still records the old vault version
+       → wiki/.vault_version still records the old vault version
   2. uv sync && bash _vault/install.sh
   3. python3 _vault/migrate.py   ← you are here
 
@@ -21,11 +21,11 @@ Usage:
   python3 _vault/migrate.py --path wiki/topics/   # Scope to a subdirectory
 """
 
+from __future__ import annotations
+
 import json
-import os
 import re
 import sys
-import glob
 from datetime import date
 from pathlib import Path
 
@@ -42,7 +42,7 @@ MIGRATION_LOG = VAULT_ROOT / "wiki" / "_migration-log.md"
 
 # ── Semver helpers ────────────────────────────────────────────────────────────
 
-def parse_semver(v: str):
+def parse_semver(v: str) -> tuple[int, ...]:
     """Parse 'X.Y.Z' into a comparable tuple of ints. Treats '0.0.0' as baseline."""
     v = v.strip().strip('"\'')
     parts = v.split(".")
@@ -64,7 +64,7 @@ def semver_gte(a: str, b: str) -> bool:
 
 # ── Frontmatter parsing ───────────────────────────────────────────────────────
 
-def split_frontmatter(content: str):
+def split_frontmatter(content: str) -> tuple[list[str] | None, str]:
     """
     Split file content into (frontmatter_lines, body).
     Returns (None, content) if no frontmatter found.
@@ -88,7 +88,7 @@ def split_frontmatter(content: str):
     return frontmatter_lines, body
 
 
-def get_field(frontmatter_lines: list, field: str):
+def get_field(frontmatter_lines: list[str], field: str) -> str | None:
     """Return the value of a frontmatter field, or None if absent."""
     pattern = re.compile(r'^' + re.escape(field) + r'\s*:\s*(.*)', re.IGNORECASE)
     for line in frontmatter_lines:
@@ -218,7 +218,7 @@ def article_matches_affects(fm_lines: list, affects) -> bool:
 
 # ── File discovery ────────────────────────────────────────────────────────────
 
-def find_wiki_files(scope_path: str = None) -> list:
+def find_wiki_files(scope_path: str | None = None) -> list[Path]:
     """
     Return all wiki .md files eligible for migration.
     Excludes system files: _index.md, _catalog.md, _migration-log.md, *.base
@@ -441,8 +441,7 @@ def main():
         if migration.get("requires_llm"):
             llm_migrations.append(migration)
 
-    # Update vault version in _index.md
-    print(f"\nUpdating vault version in wiki/_index.md → {last_to_version}")
+    print(f"\nUpdating vault version in wiki/.vault_version → {last_to_version}")
     write_vault_version(last_to_version, dry_run)
 
     # Summary
