@@ -196,13 +196,34 @@ def build_index_text(groups: dict[str, list[dict]], today: str) -> str:
 
 
 def run_qmd_rebuild(wiki_dir: Path) -> None:
-    """Run qmd collection add and qmd embed."""
+    """Register the wiki dir as the 'vault' qmd collection and (re)embed.
+
+    Idempotent: ``qmd collection add`` errors out if the ``vault`` collection
+    already exists (e.g. on every bootstrap.sh update after the first), so we
+    treat an "already exists" failure as benign and proceed straight to
+    ``qmd embed``, which refreshes embeddings for the existing collection.
+    """
     print("Rebuilding qmd collection index…")
     try:
-        subprocess.run(
+        add = subprocess.run(
             ["qmd", "collection", "add", str(wiki_dir), "--name", "vault"],
-            check=True,
+            capture_output=True,
+            text=True,
         )
+        if add.returncode != 0:
+            combined = (add.stdout + add.stderr).lower()
+            if "already exists" in combined:
+                print("qmd collection 'vault' already exists — refreshing embeddings.")
+            else:
+                if add.stdout:
+                    sys.stderr.write(add.stdout)
+                if add.stderr:
+                    sys.stderr.write(add.stderr)
+                print(
+                    f"WARNING: qmd collection add failed (exit {add.returncode}) — continuing.",
+                    file=sys.stderr,
+                )
+                return
         subprocess.run(["qmd", "embed"], check=True)
         print("qmd rebuild complete.")
     except FileNotFoundError:
