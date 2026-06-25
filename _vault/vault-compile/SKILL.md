@@ -70,7 +70,7 @@ sources: ["[[summary-source-title|Summary - Source Title]]", "[[summary-another-
 tags: [{{concept/subconcept}}, {{another-tag}}]
 status: draft
 aliases: ["{{alternate name}}", "{{abbreviation}}"]
-llm_model: "{{your model ID, e.g. claude-sonnet-4-6 or gemini-2.5-pro}}"
+llm_model: "{{your model ID, e.g. claude-sonnet-4-6 or gemini-3-pro}}"
 framework_version: "{{read from _vault/VERSION}}"
 web_sources: ["{{url-1}}", "{{url-2}}"]
 ---

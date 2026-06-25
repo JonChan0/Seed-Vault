@@ -4,7 +4,7 @@ This page covers how to update an **existing, in-use vault** — one you've alre
 
 There are two types of updates:
 
-1. **Framework updates** — new skills, improved Python engines, fixes to `CLAUDE.md`/`GEMINI.md` (synced by `bootstrap.sh update`)
+1. **Framework updates** — new skills, improved Python engines, fixes to `CLAUDE.md`/`AGENTS.md` (synced by `bootstrap.sh update`)
 2. **Article migrations** — structural changes to the wiki format that require existing articles to be updated
 
 ---
@@ -12,7 +12,7 @@ There are two types of updates:
 ## 1. Pull Framework Updates
 
 The Seed Vault framework periodically adds new skills, improves engines, and updates
-`CLAUDE.md`/`GEMINI.md`. Pull them with the installer's `update` subcommand — no remotes,
+`CLAUDE.md`/`AGENTS.md`. Pull them with the installer's `update` subcommand — no remotes,
 no merge, no git history required (your vault doesn't even have to be a git repo).
 
 ### Run the update
@@ -31,7 +31,7 @@ bash bootstrap.sh update --dry-run
 ```
 
 **What gets overwritten:** exactly the paths in `_vault/manifest.txt` — `_vault/` skills &
-engines, `_templates/`, `CLAUDE.md`, `GEMINI.md`, `pyproject.toml`, `.gitignore`. The
+engines, `_templates/`, `CLAUDE.md`, `AGENTS.md`, `pyproject.toml`, `.gitignore`. The
 manifest is the single source of truth for "what is framework."
 
 **What is never touched:** `raw/`, `wiki/`, `viz/`, `outputs/`, and your `README.md` title.
@@ -47,7 +47,7 @@ are impossible.
 > `migrate.py` deliberately **holds `.vault_version` back** at the pre-migration version until you
 > finish them — otherwise a half-done update would look complete and the next `update` would
 > silently skip the pending step. Finish flagged migrations by running `vault-migrate` in Claude
-> Code or Gemini CLI (see §2); it advances the version for you once the manual step is done. Until
+> Code or Antigravity CLI (see §2); it advances the version for you once the manual step is done. Until
 > then, re-running `bootstrap.sh update` re-syncs the framework and keeps re-flagging the pending
 > migration rather than hiding it.
 
@@ -65,7 +65,7 @@ cat _vault/VERSION
 
 ### Run the migration
 
-In Claude Code or Gemini CLI, invoke the migrate skill:
+In Claude Code or Antigravity CLI, invoke the migrate skill:
 
 ```
 vault-migrate
@@ -87,7 +87,7 @@ Rebuild the search index to pick up any changed frontmatter:
 uv run python _vault/lib/index.py --rebuild-qmd
 ```
 
-Or in Claude Code / Gemini CLI: *"Reindex"* / *"Rebuild index"*
+Or in Claude Code / Antigravity CLI: *"Reindex"* / *"Rebuild index"*
 
 ---
 

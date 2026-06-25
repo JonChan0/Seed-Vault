@@ -16,6 +16,6 @@ update_vault_framework.sh
 pyproject.toml
 uv.lock
 CLAUDE.md
-GEMINI.md
+AGENTS.md
 .gitignore
 workflow.png
