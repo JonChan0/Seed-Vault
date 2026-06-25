@@ -15,7 +15,7 @@ import argparse
 import json
 import re
 import sys
-from collections import Counter, defaultdict
+from collections import Counter
 from datetime import date, datetime
 from pathlib import Path
 
@@ -38,7 +38,7 @@ _WIKILINK_RE = re.compile(r"\[\[([^\]|#\n]+?)(?:[|#][^\]]*?)?\]\]")
 # ---------------------------------------------------------------------------
 sys.path.append(str(VAULT_ROOT))
 
-from _vault.lib.frontmatter import parse_file  # noqa: E402
+from _vault.lib.vault_frontmatter import parse_file  # noqa: E402
 
 
 # ---------------------------------------------------------------------------
@@ -82,8 +82,16 @@ def _normalize_title(title_or_path) -> str:
 
 
 def _slug(title: str) -> str:
-    """Lowercase stripped title used as a lookup key."""
-    return title.strip().lower()
+    """Normalized lookup key for link/title matching.
+
+    Lowercases and collapses hyphens, underscores, and whitespace to single
+    spaces, so an aliased wikilink target like ``dummy-human-genome`` and the
+    article title ``Dummy Human Genome`` map to the same key. Without this,
+    the mandated ``[[stem|Title]]`` link form would never register as an
+    incoming link, making every article look like an orphan.
+    """
+    s = title.strip().lower().replace("-", " ").replace("_", " ")
+    return re.sub(r"\s+", " ", s).strip()
 
 
 # ---------------------------------------------------------------------------
@@ -132,14 +140,18 @@ def build_stats() -> dict:
             tag_counter[tag.strip()] += 1
 
     # --- Wikilink analysis --------------------------------------------------
-    # incoming_links[slug] = count of [[Title]] references across all files
-    incoming: Counter = Counter()
-    # Track which slugs actually exist as article titles
-    known_slugs: set[str] = {_slug(a["title"]) for a in articles}
-    # Also index by filename stem
-    known_slugs.update(_slug(p.stem.replace("-", " ").replace("_", " ").title()) for p in files)
+    # Map every identity alias (frontmatter title slug AND filename-stem slug)
+    # to the article's canonical title. A link target may use either form —
+    # notably the mandated aliased link [[stem|Title]] resolves on the stem —
+    # so both must point at the same article or links won't register.
+    alias_to_title: dict[str, str] = {}
+    for a in articles:
+        for alias in (_slug(a["title"]), _slug(a["path"].stem)):
+            alias_to_title.setdefault(alias, a["title"])
 
-    # Per-file outgoing wikilinks (for unresolved detection)
+    # Count incoming links per canonical article title; collect targets that
+    # resolve to no known article for the unresolved-links report.
+    incoming: Counter = Counter()
     all_link_targets: list[str] = []
 
     for p in files:
@@ -147,41 +159,28 @@ def build_stats() -> dict:
             text = p.read_text(encoding="utf-8")
         except (OSError, UnicodeDecodeError):
             continue
-        targets = _WIKILINK_RE.findall(text)
-        for t in targets:
+        for t in _WIKILINK_RE.findall(text):
             t_clean = t.strip()
-            incoming[_slug(t_clean)] += 1
             all_link_targets.append(t_clean)
+            canonical = alias_to_title.get(_slug(t_clean))
+            if canonical is not None:
+                incoming[canonical] += 1
 
-    # Map slug → display title for known articles
-    slug_to_title: dict[str, str] = {}
-    for a in articles:
-        slug_to_title[_slug(a["title"])] = a["title"]
-    for p in files:
-        stem_title = p.stem.replace("-", " ").replace("_", " ").title()
-        s = _slug(stem_title)
-        if s not in slug_to_title:
-            slug_to_title[s] = stem_title
-
-    # Hub nodes: top-5 by incoming link count (must be known articles)
+    # Hub nodes: top-5 articles by incoming link count.
     hub_candidates = [
-        (slug_to_title.get(slug, slug), count)
-        for slug, count in incoming.most_common()
-        if slug in known_slugs and count > 0
+        (title, count) for title, count in incoming.most_common() if count > 0
     ][:5]
 
-    # Orphans: known articles with 0 incoming links
-    orphans = [
-        a["title"]
-        for a in articles
-        if incoming.get(_slug(a["title"]), 0) == 0
-    ]
+    # Orphans: articles with 0 incoming links.
+    orphans = [a["title"] for a in articles if incoming.get(a["title"], 0) == 0]
 
-    # Unresolved links: referenced titles not matching any known article
-    unresolved: set[str] = set()
-    for t in all_link_targets:
-        if _slug(t) not in known_slugs:
-            unresolved.add(t)
+    # Unresolved links: targets matching no known article alias. raw/ links
+    # point at raw source files (not wiki articles) and are intentional.
+    unresolved: set[str] = {
+        t
+        for t in all_link_targets
+        if not t.startswith("raw/") and _slug(t) not in alias_to_title
+    }
 
     # --- Knowledge gaps -----------------------------------------------------
     # Raw files without a corresponding source summary

@@ -44,14 +44,13 @@ EXCLUDED_SUFFIXES = {".base"}
 
 import frontmatter as _frontmatter_lib  # noqa: E402
 
-# Add vault root to path so we can import _vault.lib.frontmatter
+# Add vault root to path so we can import _vault.lib.vault_frontmatter
 sys.path.append(str(VAULT_ROOT))
 
-from _vault.lib.frontmatter import (  # noqa: E402
+from _vault.lib.vault_frontmatter import (  # noqa: E402
     parse_file,
     scan_directory,
     slugify,
-    resolve_link,
 )
 
 

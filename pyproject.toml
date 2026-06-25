@@ -13,3 +13,10 @@ dependencies = [
 dev = [
     "pytest>=9.0.3",
 ]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+markers = [
+    "requires_pandoc: test needs the pandoc binary on PATH (real document conversion)",
+    "requires_qmd: test needs the qmd CLI installed (real search indexing)",
+]

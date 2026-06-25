@@ -1,5 +1,7 @@
 # Seed Vault
 
+[![CI](https://github.com/JonChan0/Seed-Vault/actions/workflows/ci.yml/badge.svg)](https://github.com/JonChan0/Seed-Vault/actions/workflows/ci.yml)
+
 A portable, LLM-powered personal knowledge wiki framework. Use this repo as a **GitHub template** — each wiki is a fresh instance that lives entirely on your local machine. Your raw sources, compiled articles, and visualizations are never pushed to GitHub.
 
 ---
@@ -63,25 +65,67 @@ Or in **Antigravity CLI**, run `agy` in the folder — `AGENTS.md` and `.agents/
 
 **Wiki content is deliberately not tracked.** Your notes, source documents, and compiled articles can be large, private, or both. Keep them local (or back them up separately with your own approach — e.g. a private git repo, Obsidian Sync, or a local backup).
 
-### Pulling Framework Updates
+---
 
-From inside your vault, run the installer's `update` — it overwrites **only** framework
-paths (those in `_vault/manifest.txt`) and never touches `wiki/`, `raw/`, `viz/`, or
-`outputs/`. Content is safe by construction, no merge, no remotes.
+## Updating Your Vault
+
+From inside your vault, run `bootstrap.sh update` to pull a new framework version without touching your content.
 
 ```bash
-cd ~/genomics-wiki
-
-# Update to the latest release (or pass --version vX.Y.Z to pin)
+# Latest release
 bash bootstrap.sh update
 
-# Preview first — writes nothing
+# Pin to a specific release
+bash bootstrap.sh update --version v3.0.0
+
+# Preview only — writes nothing, skips migrations and index rebuild
 bash bootstrap.sh update --dry-run
+
+# Install from a local framework checkout instead of fetching a release
+bash bootstrap.sh update --source-dir ~/path/to/Seed-Vault
 ```
 
-`update` syncs framework files, re-installs skills, runs `_vault/migrate.py` to migrate
-existing articles when the version bumped, and rebuilds the index. See
-[docs/Updating-Your-Vault.md](docs/Updating-Your-Vault.md) for the full guide.
+### What `update` does
+
+1. Fetches the framework tarball from GitHub (or uses `--source-dir` for a local checkout).
+2. Overwrites **only** the paths listed in `_vault/manifest.txt` — this never touches `wiki/`, `raw/`, `viz/`, `outputs/`, or `.vault_version`. Content safety is structural.
+3. Re-runs `_vault/install.sh` — re-links skills, runs `uv sync`, checks dependencies.
+4. Runs `_vault/migrate.py` to apply article migrations when the framework version has bumped.
+5. Rebuilds the search index.
+
+### Version files
+
+| File | Tracked? | Records |
+|------|----------|---------|
+| `_vault/VERSION` | ✅ tracked | Framework version (what the installed engines and skills are) |
+| `.vault_version` | ❌ gitignored | Article version (what your wiki content has been migrated to) |
+
+### `requires_llm` migrations
+
+Some migrations have a semantic step that deterministic code can't handle alone. When `migrate.py` encounters one, it runs the structural part but **holds `.vault_version` back** at the pre-migration version — so a half-finished update can never look complete to the next `update` run.
+
+To finish the manual step, invoke `vault-migrate` in Claude Code or Antigravity CLI. It performs the LLM reasoning step and then calls:
+
+```bash
+uv run python _vault/migrate.py --complete
+```
+
+…which advances `.vault_version` to confirm the migration is done.
+
+### Standalone migrate commands
+
+```bash
+# Preview pending migrations — writes nothing
+uv run python _vault/migrate.py --dry-run
+
+# Run migrations directly (without going through bootstrap.sh update)
+uv run python _vault/migrate.py
+
+# Finalize a held-back requires_llm migration (after the LLM step is done)
+uv run python _vault/migrate.py --complete
+```
+
+See [docs/Updating-Your-Vault.md](docs/Updating-Your-Vault.md) for the full guide.
 
 ---
 
@@ -153,6 +197,20 @@ Each cycle enriches the wiki. Q&A answers can become new concept articles. Visua
 
 ---
 
-*Last updated: 2026-06-25 (v3.0.0: bootstrap.sh installs/updates the framework into any directory, version-pinned and content-safe via _vault/manifest.txt; framework decoupled from vault content; .vault_version moved to vault root; retired the fork-merge updater)*
+## Testing
+
+The framework's Python engines are covered by a pytest suite in `tests/`. Run it locally with:
+
+```bash
+uv run pytest
+```
+
+Tests that exercise `qmd` (search indexer) or `pandoc` (document converter) are marked with `requires_qmd` and `requires_pandoc` respectively and skip automatically when those tools are not installed. Installing both tools enables the full suite, which covers the complete pipeline end-to-end as well as the update/migrate path.
+
+**GitHub Actions runs the full suite on every push and pull request** (badge at top) — `qmd` and `pandoc` are both installed in CI, so all tests run on every change.
+
+---
+
+*Last updated: 2026-06-25 (v3.0.0: bootstrap.sh installs/updates the framework into any directory, version-pinned and content-safe via _vault/manifest.txt; framework decoupled from vault content; .vault_version moved to vault root; retired the fork-merge updater; added pytest suite + GitHub Actions CI)*
 
 Inspired by: https://x.com/karpathy/status/2039805659525644595

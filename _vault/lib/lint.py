@@ -28,11 +28,10 @@ INDEX_FILE = WIKI_DIR / "_index.md"
 # Add vault root to path to allow relative imports of _vault.lib
 sys.path.append(str(VAULT_ROOT))
 
-from _vault.lib.frontmatter import (
-    parse_file, 
-    scan_directory, 
-    slugify, 
-    build_vault_map, 
+from _vault.lib.vault_frontmatter import (
+    parse_file,
+    slugify,
+    build_vault_map,
     resolve_link
 )
 
@@ -77,6 +76,21 @@ def _content_wiki_files() -> list[Path]:
 @lru_cache(maxsize=1)
 def _cached_vault_map() -> dict[str, Path]:
     return build_vault_map(WIKI_DIR)
+
+
+def _raw_target_exists(raw_rel: str) -> bool:
+    """Return True if a raw/ wikilink target resolves to a file under raw/.
+
+    Matches on slugified stem so '[[raw/foo-bar]]' finds raw/foo-bar.md (or any
+    raw file whose stem slugifies the same way).
+    """
+    if not RAW_DIR.exists():
+        return False
+    wanted = slugify(Path(raw_rel).stem)
+    return any(
+        p.is_file() and slugify(p.stem) == wanted
+        for p in RAW_DIR.rglob("*")
+    )
 
 
 def _extract_wikilinks(text: str) -> list[str]:
@@ -138,6 +152,15 @@ def check_broken_wikilinks() -> dict:
 
         for field in ("sources", "original_source"):
             for target in _frontmatter_wikilink_targets(fm, field):
+                # raw/ links point at raw source files, which are not wiki
+                # articles and so never appear in the wiki vault_map. Validate
+                # them against the raw/ directory instead of flagging as broken.
+                if target.startswith("raw/"):
+                    if not _raw_target_exists(target[len("raw/"):]):
+                        issues.append(
+                            f"{rel}: broken wikilink in frontmatter field '{field}': [[{target}]]"
+                        )
+                    continue
                 if not resolve_link(target, vault_map):
                     issues.append(
                         f"{rel}: broken wikilink in frontmatter field '{field}': [[{target}]]"
@@ -199,8 +222,11 @@ def check_orphan_pages() -> dict:
 def check_missing_backlinks() -> dict:
     vault_map = _cached_vault_map()
 
+    # Content files only — _index.md mechanically links every article, so
+    # treating it as a link source would flag every article as "missing a
+    # backlink to the index" (same reasoning as check_orphan_pages).
     outgoing: dict[Path, set[Path]] = {}
-    for f in _all_wiki_files():
+    for f in _content_wiki_files():
         text = _read_text(f)
         body = _strip_frontmatter(text)
         links = _extract_wikilinks(body)
