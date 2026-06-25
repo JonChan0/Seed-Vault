@@ -20,7 +20,15 @@ curl -fsSL https://raw.githubusercontent.com/JonChan0/Seed-Vault/main/bootstrap.
 
 # …or pin an exact version
 curl -fsSL .../bootstrap.sh | bash -s -- new ~/genomics-wiki --version v3.0.0
+
+# …or track the bleeding edge — install the current tip of the 'main' branch
+curl -fsSL .../bootstrap.sh | bash -s -- new ~/genomics-wiki --main
 ```
+
+By default `bootstrap.sh` installs the **latest release tag**. If the repo has no
+release tag yet, it automatically falls back to the tip of the `main` branch. Pass
+`--main` to force the bleeding-edge `main` build explicitly. The recorded version is
+whatever `_vault/VERSION` ships on `main`. `--main` and `--version` are mutually exclusive.
 
 This lays down the framework (`_vault/`, `_templates/`, configs), templates the README
 to your vault name, creates the empty `wiki/` skeleton, and records the version in
@@ -77,6 +85,9 @@ bash bootstrap.sh update
 
 # Pin to a specific release
 bash bootstrap.sh update --version v3.0.0
+
+# Track the bleeding edge — update to the current tip of 'main'
+bash bootstrap.sh update --main
 
 # Preview only — writes nothing, skips migrations and index rebuild
 bash bootstrap.sh update --dry-run
