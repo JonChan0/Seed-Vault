@@ -54,7 +54,7 @@ _source_lines_cache: dict[Path, list[str]] = {}
 # and as a direct module import.
 sys.path.append(str(VAULT_ROOT))
 
-from _vault.lib.frontmatter import parse_file  # noqa: E402
+from _vault.lib.vault_frontmatter import parse_file  # noqa: E402
 
 
 def _read_text(path: Path) -> str:

@@ -1,0 +1,51 @@
+name: CI
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+
+jobs:
+  test:
+    name: Test (Python ${{ matrix.python-version }})
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        python-version: ["3.11", "3.12"]
+
+    steps:
+      # Check out the repository
+      - uses: actions/checkout@v4
+
+      # Install uv and set the Python version for this matrix leg
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+          python-version: ${{ matrix.python-version }}
+
+      # Install Python dependencies (including dev group for pytest)
+      - name: Install dependencies
+        run: uv sync
+
+      # Install pandoc — required by convert.py (skipped tests run in full in CI)
+      - name: Install pandoc
+        run: sudo apt-get update && sudo apt-get install -y pandoc
+
+      # Install Node + qmd search indexer. qmd runs on the bun runtime, so bun
+      # must be installed too or `qmd` is present but non-functional.
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Set up bun (qmd runtime)
+        uses: oven-sh/setup-bun@v2
+
+      - name: Install qmd
+        run: npm install -g @tobilu/qmd
+
+      # Run the full test suite
+      - name: Run tests
+        run: uv run pytest -v

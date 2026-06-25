@@ -37,6 +37,15 @@ raw/
 # install.sh creates wiki/_index.md on first run if it doesn't exist.
 wiki/
 
+# Test fixtures are a tiny real vault checked into git on purpose, so the
+# pytest suite (and CI) has source/wiki content to run the pipeline against.
+# These negations re-include the fixture dirs that the bare raw/ and wiki/
+# rules above would otherwise exclude (re-include the dir, then its contents).
+!tests/fixtures/clean/raw/
+!tests/fixtures/clean/raw/**
+!tests/fixtures/clean/wiki/
+!tests/fixtures/clean/wiki/**
+
 # Outputs and visualizations — ephemeral, not tracked
 outputs/
 !outputs/.gitkeep
