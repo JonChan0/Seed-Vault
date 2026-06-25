@@ -4,49 +4,46 @@ This page covers how to update an **existing, in-use vault** — one you've alre
 
 There are two types of updates:
 
-1. **Framework updates** — new skills, improved Python engines, fixes to `CLAUDE.md`/`GEMINI.md` (pulled from the upstream template)
+1. **Framework updates** — new skills, improved Python engines, fixes to `CLAUDE.md`/`GEMINI.md` (synced by `bootstrap.sh update`)
 2. **Article migrations** — structural changes to the wiki format that require existing articles to be updated
 
 ---
 
 ## 1. Pull Framework Updates
 
-The upstream Seed Vault template periodically adds new skills, improves engines, and updates `CLAUDE.md`/`GEMINI.md`. These are tracked in git and can be merged into your vault.
+The Seed Vault framework periodically adds new skills, improves engines, and updates
+`CLAUDE.md`/`GEMINI.md`. Pull them with the installer's `update` subcommand — no remotes,
+no merge, no git history required (your vault doesn't even have to be a git repo).
 
-### One-time: Add the upstream remote
-
-```bash
-git remote add upstream https://github.com/you/seed-vault
-```
-
-Replace the URL with the actual Seed Vault template repository URL.
-
-### Each update cycle
+### Run the update
 
 ```bash
-# Fetch upstream changes
-git fetch upstream
+cd ~/your-vault
 
-# Merge framework changes into your vault
-# --allow-unrelated-histories is needed if your wiki diverged significantly
-git merge upstream/main --allow-unrelated-histories
+# Latest release
+bash bootstrap.sh update
+
+# …or pin an exact version
+bash bootstrap.sh update --version v3.0.0
+
+# Preview only — writes nothing, skips migrations/index
+bash bootstrap.sh update --dry-run
 ```
 
-**What gets merged:** Everything tracked in git — `_vault/` skills & engines, `CLAUDE.md`, `GEMINI.md`, `_templates/`, `.obsidian/`, `pyproject.toml`.
+**What gets overwritten:** exactly the paths in `_vault/manifest.txt` — `_vault/` skills &
+engines, `_templates/`, `CLAUDE.md`, `GEMINI.md`, `pyproject.toml`, `.gitignore`. The
+manifest is the single source of truth for "what is framework."
 
-**What is never touched:** `raw/`, `wiki/`, `viz/`, `outputs/` — these are fully gitignored and live only on your machine. No merge conflicts are possible on wiki content.
+**What is never touched:** `raw/`, `wiki/`, `viz/`, `outputs/`, and your `README.md` title.
+Content safety is structural — update only writes manifest paths, so conflicts on your notes
+are impossible.
 
-### After merging
+`update` runs the full cycle for you: sync framework → `_vault/install.sh` (re-link skills,
+`uv sync`) → `_vault/migrate.py` (migrate articles if the version bumped) → rebuild the index
+→ record the new version in `.vault_version`.
 
-```bash
-# Re-sync Python dependencies
-uv sync
-
-# Re-install skills (Claude Code symlinks + Gemini CLI hard links)
-bash _vault/install.sh
-```
-
-In Claude Code, skills in `.claude/skills/` are auto-loaded — no reload needed. In Gemini CLI, restart with `gemini` in the vault directory.
+> Migrations that need LLM reasoning (`requires_llm: true`) are flagged — finish them by
+> running `vault-migrate` in Claude Code or Gemini CLI (see §2).
 
 ---
 
@@ -100,39 +97,40 @@ This runs 9 structural checks and flags broken links, orphaned articles, missing
 
 ---
 
-## Handling Merge Conflicts
+## Customizing Framework Files
 
-If you've modified tracked files (e.g. `CLAUDE.md` or a template), you may hit merge conflicts when pulling upstream changes. In general:
+`update` overwrites every manifest path wholesale — so edits you make directly to
+`CLAUDE.md`, `_vault/` engines, or `_templates/` are replaced on the next update. That's
+intentional: the framework stays canonical and transferable. Keep your customizations where
+update never reaches:
 
-- **`CLAUDE.md` / `GEMINI.md`**: Upstream version is authoritative — accept upstream changes, then re-apply any custom additions you want to keep.
-- **`_vault/` skills and engines**: Always accept upstream — these are managed by the framework.
-- **`_templates/`**: Accept upstream; templates rarely change.
-- **`.obsidian/`**: Usually safe to accept upstream; check if any personal plugin settings are affected.
+- **Project-specific instructions**: your vault's `README.md` (templated once on install,
+  never re-overwritten) or a local `.claude/` settings file.
+- **Local-only content**: `wiki/`, `raw/`, `viz/`, `outputs/`.
+- **Forking the framework itself**: if you need to change engines or skills permanently,
+  fork the framework repo and point `bootstrap.sh`'s `REPO_URL` at your fork.
 
 ---
 
 ## Checking What Changed
 
-To see what a framework update changed before merging:
+Preview an update before applying it:
 
 ```bash
-git fetch upstream
-git log HEAD..upstream/main --oneline        # commit summary
-git diff HEAD upstream/main -- _vault/       # engine/skill diffs
-git diff HEAD upstream/main -- CLAUDE.md     # instructions diff
+bash bootstrap.sh update --dry-run          # lists every file that would change
+cat .vault_version                          # your vault's current framework version
 ```
+
+Pin to a known version with `--version vX.Y.Z` if you want to control exactly what lands.
 
 ---
 
 ## Summary Checklist
 
-- [ ] `git fetch upstream && git merge upstream/main`
-- [ ] `uv sync`
-- [ ] `bash _vault/install.sh`
-- [ ] Check `_vault/VERSION` — did the framework version bump?
-- [ ] If version bumped: run `vault-migrate`
+- [ ] `bash bootstrap.sh update` (or `--version vX.Y.Z` to pin)
+- [ ] Check `.vault_version` — did the framework version bump?
+- [ ] If a migration flagged an LLM step: run `vault-migrate`
 - [ ] Run `vault-lint` to verify wiki health
-- [ ] Rebuild index: `uv run python _vault/lib/index.py --rebuild-qmd`
 
 ## See Also
 

@@ -1,0 +1,7 @@
+This directory is the Seed Vault FRAMEWORK SOURCE repo, not an installed vault.
+
+bootstrap.sh and _vault/install.sh detect this marker and skip vault-only steps
+(wiki bootstrap, README templating, content migration) when run here, so the
+framework repo is never mistaken for a content vault.
+
+To create or update a real vault, see README.md → "Install" / "Update".

@@ -3,16 +3,14 @@
 Seed Vault — Incremental Wiki Migration Runner
 Applies structural migrations to wiki articles when the framework version changes.
 
-Normal update flow:
-  1. git fetch upstream && git merge upstream/main
-       → _vault/VERSION is now the new framework version
-       → wiki/.vault_version still records the old vault version
-  2. uv sync && bash _vault/install.sh
+Normal update flow (driven by bootstrap.sh update):
+  1. bootstrap.sh syncs framework paths → _vault/VERSION is now the new version
+  2. bash _vault/install.sh
   3. python3 _vault/migrate.py   ← you are here
 
 Version sources:
-  - Framework version (target): _vault/VERSION      (updated by git merge, tracked in git)
-  - Vault version (current):    wiki/.vault_version (gitignored, local-only — no merge conflicts)
+  - Framework version (target): _vault/VERSION   (synced by bootstrap.sh, tracked in git)
+  - Vault version (current):    .vault_version   (vault root; gitignored, local-only)
 
 Usage:
   python3 _vault/migrate.py                        # Apply pending migrations
@@ -36,7 +34,8 @@ SCRIPT_DIR = Path(__file__).parent
 VAULT_ROOT = SCRIPT_DIR.parent
 VERSION_FILE = SCRIPT_DIR / "VERSION"
 MIGRATIONS_DIR = SCRIPT_DIR / "migrations"
-VAULT_VERSION_FILE = VAULT_ROOT / "wiki" / ".vault_version"  # gitignored, local-only
+VAULT_VERSION_FILE = VAULT_ROOT / ".vault_version"                  # install-state, vault root
+LEGACY_VAULT_VERSION_FILE = VAULT_ROOT / "wiki" / ".vault_version"  # pre-3.x location
 MIGRATION_LOG = VAULT_ROOT / "wiki" / "_migration-log.md"
 
 
@@ -238,24 +237,25 @@ def find_wiki_files(scope_path: str | None = None) -> list[Path]:
 
 def read_vault_version() -> str:
     """
-    Read the vault's current framework version from wiki/.vault_version.
-    This file is gitignored and local-only, so it never conflicts on git merge.
-    Falls back to 0.0.0 if the file doesn't exist (new or pre-versioned vault).
+    Read the vault's current framework version from .vault_version (vault root).
+    Back-compat: falls back to the legacy wiki/.vault_version if the root file is
+    absent. This file is gitignored and local-only, so it never conflicts on merge.
+    Falls back to 0.0.0 if neither exists (new or pre-versioned vault).
     """
-    if not VAULT_VERSION_FILE.exists():
+    src = VAULT_VERSION_FILE if VAULT_VERSION_FILE.exists() else LEGACY_VAULT_VERSION_FILE
+    if not src.exists():
         return "0.0.0"
-    v = VAULT_VERSION_FILE.read_text(encoding="utf-8").strip().strip('"\'')
+    v = src.read_text(encoding="utf-8").strip().strip('"\'')
     return v if v else "0.0.0"
 
 
 def write_vault_version(version: str, dry_run: bool):
-    """Write the vault's framework version to wiki/.vault_version."""
+    """Write the vault's framework version to .vault_version (vault root)."""
     if dry_run:
-        print(f"  [dry-run] wiki/.vault_version → {version}")
+        print(f"  [dry-run] .vault_version → {version}")
         return
-    VAULT_VERSION_FILE.parent.mkdir(parents=True, exist_ok=True)
     VAULT_VERSION_FILE.write_text(version + "\n", encoding="utf-8")
-    print(f"  wiki/.vault_version → {version}")
+    print(f"  .vault_version → {version}")
 
 
 # ── Migration log ─────────────────────────────────────────────────────────────
@@ -371,7 +371,7 @@ def main():
     vault_version = from_version_override or read_vault_version()
 
     print(f"Framework version : {framework_version}  (from _vault/VERSION — updated by git merge)")
-    print(f"Vault version     : {vault_version}  (from wiki/.vault_version — reflects existing articles)")
+    print(f"Vault version     : {vault_version}  (from .vault_version — reflects existing articles)")
 
     # Compare
     if parse_semver(vault_version) == parse_semver(framework_version):
@@ -441,7 +441,7 @@ def main():
         if migration.get("requires_llm"):
             llm_migrations.append(migration)
 
-    print(f"\nUpdating vault version in wiki/.vault_version → {last_to_version}")
+    print(f"\nUpdating vault version in .vault_version → {last_to_version}")
     write_vault_version(last_to_version, dry_run)
 
     # Summary

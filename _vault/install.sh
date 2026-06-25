@@ -19,6 +19,12 @@ set -e
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 VAULT_ROOT="$(dirname "$SCRIPT_DIR")"
 
+# Framework SOURCE repo vs an installed vault. The marker means "this is the
+# framework being developed, not a content vault" — skip vault-only bootstrap
+# (wiki skeleton, version record) so the framework repo stays clean.
+IS_FRAMEWORK_REPO=false
+[ -f "$VAULT_ROOT/.seed-vault-framework" ] && IS_FRAMEWORK_REPO=true
+
 # ── Claude Code: project-local skills (.claude/skills/) ──────────────────────
 CLAUDE_SKILLS_DIR="$VAULT_ROOT/.claude/skills"
 mkdir -p "$CLAUDE_SKILLS_DIR"
@@ -82,16 +88,9 @@ echo "Skills are project-local and auto-loaded — no /reload-plugins needed."
 
 echo ""
 
-# ── Vault name substitution ───────────────────────────────────────────────────
-REPO_NAME="$(basename "$VAULT_ROOT")"
-VAULT_DISPLAY="$(echo "$REPO_NAME" | sed 's/[-_]/ /g' | awk '{for(i=1;i<=NF;i++) $i=toupper(substr($i,1,1)) tolower(substr($i,2))}1')"
-
-README="$VAULT_ROOT/README.md"
-if [ -f "$README" ] && [ "$VAULT_DISPLAY" != "Seed Vault" ]; then
-    sed -i "s/Seed Vault/$VAULT_DISPLAY/g" "$README"
-    echo "Updated README.md: 'Seed Vault' → '$VAULT_DISPLAY'"
-    echo ""
-fi
+# ── Vault name templating ─────────────────────────────────────────────────────
+# README is templated ONCE by bootstrap.sh when creating a vault (`bootstrap.sh new`),
+# not here — install.sh re-runs on every update and would re-clobber a vault's title.
 # ─────────────────────────────────────────────────────────────────────────────
 
 # ── Dependency checks ─────────────────────────────────────────────────────────
@@ -129,7 +128,12 @@ echo ""
 
 # ── Wiki bootstrap ────────────────────────────────────────────────────────────
 # wiki/ is fully gitignored — create the minimum skeleton if this is a fresh clone.
+# Skipped in the framework SOURCE repo (no content vault there).
 WIKI_DIR="$VAULT_ROOT/wiki"
+if $IS_FRAMEWORK_REPO; then
+    echo "ℹ Framework source repo (.seed-vault-framework present) — skipping wiki bootstrap."
+    echo ""
+else
 mkdir -p "$WIKI_DIR/concepts" "$WIKI_DIR/sources" "$WIKI_DIR/topics"
 
 INDEX_FILE="$WIKI_DIR/_index.md"
@@ -179,12 +183,16 @@ updated: $(date +%Y-%m-%d)
 EOF
     echo "Created wiki/_log.md"
 fi
+fi  # end IS_FRAMEWORK_REPO guard
 # ─────────────────────────────────────────────────────────────────────────────
 
 # ── Version check ─────────────────────────────────────────────────────────────
+# .vault_version lives at vault root (an install-state file — not wiki content).
+# Back-compat: fall back to the legacy wiki/.vault_version if the root file is absent.
 VERSION_FILE="$SCRIPT_DIR/VERSION"
-VAULT_VERSION_FILE="$WIKI_DIR/.vault_version"
-if [ -f "$VERSION_FILE" ]; then
+VAULT_VERSION_FILE="$VAULT_ROOT/.vault_version"
+[ -f "$VAULT_VERSION_FILE" ] || VAULT_VERSION_FILE="$WIKI_DIR/.vault_version"
+if ! $IS_FRAMEWORK_REPO && [ -f "$VERSION_FILE" ]; then
     fw_ver=$(cat "$VERSION_FILE" | tr -d '[:space:]')
     if [ -f "$VAULT_VERSION_FILE" ]; then
         vault_ver=$(cat "$VAULT_VERSION_FILE" | tr -d '[:space:]')

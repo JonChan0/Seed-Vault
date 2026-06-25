@@ -6,18 +6,27 @@ A portable, LLM-powered personal knowledge wiki framework. Use this repo as a **
 
 ## Starting a New Wiki
 
-### On GitHub
-1. Click **"Use this template"** → **"Create a new repository"**
-2. Name it after your topic (e.g. `genomics-wiki`, `stoic-philosophy-wiki`)
-3. Set it to **Private** (recommended — your wiki content stays local anyway)
-4. Clone it locally:
+The framework installs **into any empty directory** with one command — no fork, no
+template, no git history required. Pick a version-pinned, content-free install.
+
+### Install with `bootstrap.sh` (recommended)
 
 ```bash
-git clone https://github.com/you/your-wiki-name
-cd your-wiki-name
+# Latest release, fresh vault at ~/genomics-wiki
+curl -fsSL https://raw.githubusercontent.com/JonChan0/Seed-Vault/main/bootstrap.sh \
+  | bash -s -- new ~/genomics-wiki
+
+# …or pin an exact version
+curl -fsSL .../bootstrap.sh | bash -s -- new ~/genomics-wiki --version v3.0.0
 ```
 
-### Local Setup
+This lays down the framework (`_vault/`, `_templates/`, configs), templates the README
+to your vault name, creates the empty `wiki/` skeleton, and records the version in
+`.vault_version`. The directory becomes a standalone vault you back up however you like.
+
+> Prefer a clone? `git clone https://github.com/JonChan0/Seed-Vault my-wiki && cd my-wiki && bash _vault/install.sh` still works, but you then carry the framework's git history.
+
+### Dependencies
 ```bash
 # Install Python dependencies (requires uv)
 uv sync
@@ -25,7 +34,7 @@ uv sync
 # Install qmd for search indexing
 npm install -g @tobilu/qmd
 
-# Install skills for Claude Code (project-local) and Gemini CLI (hard links)
+# (bootstrap.sh runs _vault/install.sh for you; run it manually only after a clone)
 bash _vault/install.sh
 
 # Open as an Obsidian vault
@@ -56,25 +65,23 @@ Or in **Gemini CLI**, run `gemini` in the folder — `GEMINI.md` and `skills/` a
 
 ### Pulling Framework Updates
 
-If the template adds new skills or improves existing ones:
+From inside your vault, run the installer's `update` — it overwrites **only** framework
+paths (those in `_vault/manifest.txt`) and never touches `wiki/`, `raw/`, `viz/`, or
+`outputs/`. Content is safe by construction, no merge, no remotes.
 
 ```bash
-# Add the template as an upstream remote (one-time)
-git remote add upstream https://github.com/you/seed-vault
+cd ~/genomics-wiki
 
-# Pull framework changes (skills, CLAUDE.md, GEMINI.md, templates)
-git fetch upstream
-git merge upstream/main --allow-unrelated-histories
+# Update to the latest release (or pass --version vX.Y.Z to pin)
+bash bootstrap.sh update
 
-# Re-sync dependencies and re-install skills
-uv sync
-bash _vault/install.sh
-
-# If the framework version changed, migrate existing articles
-# Run vault-migrate in Claude Code or Gemini CLI
+# Preview first — writes nothing
+bash bootstrap.sh update --dry-run
 ```
 
-See [docs/Updating-Your-Vault.md](docs/Updating-Your-Vault.md) for the full update guide, including migration steps and merge conflict handling.
+`update` syncs framework files, re-installs skills, runs `_vault/migrate.py` to migrate
+existing articles when the version bumped, and rebuilds the index. See
+[docs/Updating-Your-Vault.md](docs/Updating-Your-Vault.md) for the full guide.
 
 ---
 
@@ -132,6 +139,6 @@ Each cycle enriches the wiki. Q&A answers can become new concept articles. Visua
 
 ---
 
-*Last updated: 2026-04-07 (v2.0: renamed seed-* → vault-*, added deterministic Python engines, qmd search integration, clean-context verification subagent, eliminated _catalog.md; added Gemini CLI support via GEMINI.md + hard-linked skills/, added llm_model frontmatter field)*
+*Last updated: 2026-06-25 (v3.0.0: bootstrap.sh installs/updates the framework into any directory, version-pinned and content-safe via _vault/manifest.txt; framework decoupled from vault content; .vault_version moved to vault root; retired the fork-merge updater)*
 
 Inspired by: https://x.com/karpathy/status/2039805659525644595

@@ -1,0 +1,21 @@
+# Seed Vault — Framework Manifest
+#
+# Framework-owned paths, relative to vault root. `bootstrap.sh update` overwrites
+# EXACTLY these paths with the pinned framework version and touches nothing else.
+# Lines starting with '#' and blank lines are ignored. A trailing '/' means directory.
+#
+# Vault-owned paths (NEVER written by update): wiki/ raw/ viz/ outputs/ .obsidian/
+# .git/ .vault_version  — plus README.md, which bootstrap.sh templates once on `new`
+# and never re-overwrites (preserves each vault's custom title).
+
+_vault/
+_templates/
+docs/
+bootstrap.sh
+update_vault_framework.sh
+pyproject.toml
+uv.lock
+CLAUDE.md
+GEMINI.md
+.gitignore
+workflow.png
