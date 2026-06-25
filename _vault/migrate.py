@@ -370,7 +370,7 @@ def main():
     framework_version = VERSION_FILE.read_text(encoding="utf-8").strip()
     vault_version = from_version_override or read_vault_version()
 
-    print(f"Framework version : {framework_version}  (from _vault/VERSION — updated by git merge)")
+    print(f"Framework version : {framework_version}  (from _vault/VERSION — synced by bootstrap.sh update)")
     print(f"Vault version     : {vault_version}  (from .vault_version — reflects existing articles)")
 
     # Compare
