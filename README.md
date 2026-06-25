@@ -106,12 +106,17 @@ The LLM is the primary author of all files in `wiki/`, `viz/`, and `outputs/`. D
 
 ## Skills
 
+The vault ships ten skills. Nine are **single-purpose skills** that each own one
+operation; the tenth, `vault-pipeline`, is a **meta-skill** that orchestrates the
+others end-to-end.
+
+### Single-purpose skills
+
 <!-- SKILLS:START -->
 | Skill Name | Say this... | The LLM will... |
 |------------|-------------|-----------------|
 | `vault-ingest` | "Ingest raw/paper.pdf" / "import this URL" | Run convert.py for file conversion, then create source summary in wiki/sources/; supports YouTube transcripts and Wayback Machine fallback for dead URLs |
 | `vault-compile` | "Compile the wiki" / "write an article about X" | Build interconnected concept articles from raw sources |
-| `vault-pipeline` | "Process everything" / "run the pipeline" | Run pipeline.py to detect changes, then orchestrate ingest → compile → index → verify (clean-context subagent) → lint |
 | `vault-index` | "Reindex" / "rebuild index" | Run index.py to rebuild _index.md and qmd search index; fully deterministic |
 | `vault-qa` | "What do we know about X?" / "research X" | Use qmd for retrieval, then synthesize an answer with citations and confidence rating |
 | `vault-verify` | "Fact-check the X article" / "verify this" | Run verify.py for claim extraction, then launch clean-context subagent for unbiased semantic verification |
@@ -120,6 +125,15 @@ The LLM is the primary author of all files in `wiki/`, `viz/`, and `outputs/`. D
 | `vault-digest` | "Briefing" / "what's in the wiki?" | Run digest.py for fully deterministic vault status summary |
 | `vault-migrate` | "Migrate my wiki" / "apply updates" | Run migrate.py for structural changes, handle LLM migration steps if needed |
 <!-- SKILLS:END -->
+
+### Meta-skill
+
+`vault-pipeline` doesn't do new work of its own — it sequences the single-purpose
+skills above into one pass, so you can process everything with a single request.
+
+| Skill Name | Say this... | The LLM will... |
+|------------|-------------|-----------------|
+| `vault-pipeline` | "Process everything" / "run the pipeline" | Run pipeline.py to detect new/changed files, then orchestrate `vault-ingest` → `vault-compile` → `vault-index` → `vault-verify` (clean-context subagent) → `vault-lint` in one pass |
 
 ---
 
