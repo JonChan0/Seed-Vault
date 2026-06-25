@@ -7,9 +7,9 @@
 #   Auto-loaded by Claude Code when you open this directory.
 #   No /reload-plugins needed.
 #
-# Gemini CLI: workspace skills → skills/
+# Antigravity CLI: workspace skills → .agents/skills/
 #   Hard links to _vault/vault-*/SKILL.md.
-#   Auto-loaded by Gemini CLI when you run `gemini` here.
+#   Loaded as slash commands by Antigravity CLI when you run `agy` here.
 #
 # Run once after cloning (or after pulling framework updates).
 # ============================================================
@@ -215,10 +215,10 @@ if ! $IS_FRAMEWORK_REPO && [ -f "$VERSION_FILE" ]; then
     fi
     if [ -z "$vault_ver" ]; then
         echo "⚠ This vault has no version record (framework is now v$fw_ver)."
-        echo "  Run vault-migrate in Claude Code or Gemini CLI to update your wiki articles."
+        echo "  Run vault-migrate in Claude Code or Antigravity CLI to update your wiki articles."
     elif [ "$vault_ver" != "$fw_ver" ]; then
         echo "⚠ Framework updated to v$fw_ver (vault articles are at v$vault_ver)."
-        echo "  Run vault-migrate in Claude Code or Gemini CLI to update your wiki articles."
+        echo "  Run vault-migrate in Claude Code or Antigravity CLI to update your wiki articles."
     else
         echo "✓ Vault is current (framework v$fw_ver)."
     fi
@@ -226,25 +226,25 @@ fi
 echo ""
 # ─────────────────────────────────────────────────────────────────────────────
 
-# ── Gemini CLI: workspace skills (.gemini/skills/) with hard links ────────────
-echo "Setting up Gemini CLI skills directory (.gemini/skills/)..."
+# ── Antigravity CLI: workspace skills (.agents/skills/) with hard links ───────
+echo "Setting up Antigravity CLI skills directory (.agents/skills/)..."
 echo ""
 
-GEMINI_SKILLS_DIR="$VAULT_ROOT/.gemini/skills"
-mkdir -p "$GEMINI_SKILLS_DIR"
+AGENTS_SKILLS_DIR="$VAULT_ROOT/.agents/skills"
+mkdir -p "$AGENTS_SKILLS_DIR"
 
-gemini_installed=0
+agy_installed=0
 
 for skill_dir in "$SCRIPT_DIR"/vault-*/; do
     [ -d "$skill_dir" ] || continue
     skill_name=$(basename "$skill_dir")
     skill_md="$skill_dir/SKILL.md"
-    gemini_skill_dir="$GEMINI_SKILLS_DIR/$skill_name"
-    target="$gemini_skill_dir/SKILL.md"
+    agy_skill_dir="$AGENTS_SKILLS_DIR/$skill_name"
+    target="$agy_skill_dir/SKILL.md"
 
     [ -f "$skill_md" ] || continue
 
-    mkdir -p "$gemini_skill_dir"
+    mkdir -p "$agy_skill_dir"
 
     if [ -f "$target" ]; then
         src_inode=$(stat -c '%i' "$skill_md" 2>/dev/null || stat -f '%i' "$skill_md" 2>/dev/null)
@@ -258,22 +258,30 @@ for skill_dir in "$SCRIPT_DIR"/vault-*/; do
 
     # Hard link first; fall back to symlink if cross-filesystem
     if ln "$skill_md" "$target" 2>/dev/null; then
-        echo "  ✓ Hard-linked: $skill_name → .gemini/skills/$skill_name/SKILL.md"
+        echo "  ✓ Hard-linked: $skill_name → .agents/skills/$skill_name/SKILL.md"
     else
         ln -sf "$skill_md" "$target"
         echo "  ~ Symlinked:   $skill_name (cross-filesystem fallback)"
     fi
-    gemini_installed=$((gemini_installed + 1))
+    agy_installed=$((agy_installed + 1))
 done
 
 echo ""
-echo "Gemini skills ready in .gemini/skills/ ($gemini_installed installed/updated)."
+echo "Antigravity skills ready in .agents/skills/ ($agy_installed installed/updated)."
 
-if command -v gemini &>/dev/null; then
-    echo "✓ gemini CLI found: $(gemini --version 2>/dev/null | head -1)"
+# Clean up a stale .gemini/skills/ directory left by the old Gemini CLI layout.
+OLD_GEMINI_SKILLS_DIR="$VAULT_ROOT/.gemini/skills"
+if [ -d "$OLD_GEMINI_SKILLS_DIR" ]; then
+    rm -rf "$OLD_GEMINI_SKILLS_DIR"
+    rmdir "$VAULT_ROOT/.gemini" 2>/dev/null || true
+    echo "  ✗ Removed legacy .gemini/skills/ (Antigravity uses .agents/skills/)"
+fi
+
+if command -v agy &>/dev/null; then
+    echo "✓ agy CLI found: $(agy --version 2>/dev/null | head -1)"
 else
-    echo "ℹ gemini CLI not found (optional — install: npm install -g @google/gemini-cli)"
+    echo "ℹ agy CLI not found (optional — install: curl -fsSL https://antigravity.google/cli/install.sh | bash)"
 fi
 echo ""
-echo "Gemini CLI users: run 'gemini' in this directory — GEMINI.md and .gemini/skills/ are auto-loaded."
+echo "Antigravity CLI users: run 'agy' in this directory — AGENTS.md and .agents/skills/ are auto-loaded."
 # ─────────────────────────────────────────────────────────────────────────────

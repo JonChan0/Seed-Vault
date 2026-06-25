@@ -241,7 +241,7 @@ if [ "$SUBCMD" = "update" ]; then
     [ "$POST" = "unknown" ] && [ -f "$VAULT/wiki/.vault_version" ] && POST="$(tr -d '[:space:]' < "$VAULT/wiki/.vault_version")"
     if [ "$POST" != "$BARE" ]; then
         warn "Framework synced to $BARE, but wiki content is at $POST."
-        warn "A migration needs a manual step — run the vault-migrate skill in Claude Code / Gemini CLI to finish."
+        warn "A migration needs a manual step — run the vault-migrate skill in Claude Code / Antigravity CLI to finish."
     fi
     if command -v uv >/dev/null 2>&1 && [ -f "$VAULT/_vault/lib/index.py" ]; then
         info "Rebuilding index"

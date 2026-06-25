@@ -1,6 +1,8 @@
-# Seed Vault — Gemini Instructions
+# Seed Vault — Antigravity CLI Instructions
 
-This is a **Seed Vault** wiki. Gemini is the primary author of all wiki content. The user drops source material into `raw/` and directs Gemini to build, maintain, and query the wiki. Do not wait for the user to manage wiki files — Gemini owns that responsibility.
+This is a **Seed Vault** wiki. The Antigravity agent (`agy`) is the primary author of all wiki content. The user drops source material into `raw/` and directs the agent to build, maintain, and query the wiki. Do not wait for the user to manage wiki files — the agent owns that responsibility.
+
+> **Antigravity CLI** (`agy`) is Google's terminal coding agent that replaced Gemini CLI. It reads workspace instructions from this `AGENTS.md` file (the new standard, replacing the old `GEMINI.md`/`.gemini/` convention) and loads workspace skills from `.agents/skills/`. Run `agy inspect` to see which context files and skills are active.
 
 ---
 
@@ -8,16 +10,16 @@ This is a **Seed Vault** wiki. Gemini is the primary author of all wiki content.
 
 | Directory | Purpose | Who writes |
 |-----------|---------|------------|
-| `raw/` | Source documents — articles, PDFs converted to .md, web clips | User (Gemini never modifies) |
-| `wiki/` | All compiled wiki articles | Gemini only |
-| `wiki/_index.md` | Master index of every article in the wiki | Deterministic engine + Gemini |
+| `raw/` | Source documents — articles, PDFs converted to .md, web clips | User (the agent never modifies) |
+| `wiki/` | All compiled wiki articles | Agent only |
+| `wiki/_index.md` | Master index of every article in the wiki | Deterministic engine + agent |
 | `wiki/_index.base` | Obsidian Bases view of the index (auto-populated from frontmatter) | Do not modify |
 | `wiki/_log.md` | Append-only operation log (pipeline, ingest, lint events) | Deterministic engines |
 | `wiki/_migration-log.md` | Record of applied framework migrations | Do not modify (managed by vault-migrate) |
-| `wiki/concepts/` | Concept articles synthesized from multiple sources | Gemini |
-| `wiki/sources/` | One summary per file in `raw/` | Gemini |
-| `viz/` | Self-contained HTML visualizations | Gemini |
-| `outputs/` | Q&A reports, lint reports, one-off outputs (gitignored — ephemeral) | Gemini |
+| `wiki/concepts/` | Concept articles synthesized from multiple sources | Agent |
+| `wiki/sources/` | One summary per file in `raw/` | Agent |
+| `viz/` | Self-contained HTML visualizations | Agent |
+| `outputs/` | Q&A reports, lint reports, one-off outputs (gitignored — ephemeral) | Agent |
 | `_templates/` | Obsidian article templates | Do not modify |
 | `_vault/` | Skill definitions, deterministic engines, migrations (installed via install.sh) | Do not modify |
 | `_vault/lib/` | Python engines for deterministic operations (lint, digest, verify, etc.) | Do not modify |
@@ -26,7 +28,7 @@ This is a **Seed Vault** wiki. Gemini is the primary author of all wiki content.
 
 ## Architecture: Deterministic-First
 
-The vault follows a **deterministic-first** pattern. Each operation runs a Python engine first (structural analysis, file conversion, claim extraction), then Gemini handles what machines can't (synthesis, semantic verification, article writing).
+The vault follows a **deterministic-first** pattern. Each operation runs a Python engine first (structural analysis, file conversion, claim extraction), then the agent handles what machines can't (synthesis, semantic verification, article writing).
 
 ### Three-layer architecture:
 1. **Raw sources** (`raw/`): Immutable, user-curated
@@ -37,13 +39,13 @@ The vault follows a **deterministic-first** pattern. Each operation runs a Pytho
 - **uv** — Python dependency management (`uv sync` to install)
 - **qmd** — Search indexing (`npm install -g @tobilu/qmd`)
 - **pandoc** — Optional, for PDF/DOCX conversion
-- **gemini** — Gemini CLI (`npm install -g @google/gemini-cli` or `pip install gemini-cli`)
+- **agy** — Antigravity CLI (`curl -fsSL https://antigravity.google/cli/install.sh | bash` — single compiled binary, no Node/Python runtime)
 
 ---
 
 ## Article Frontmatter (REQUIRED on every wiki file)
 
-Every file Gemini writes in `wiki/` MUST begin with this frontmatter:
+Every file the agent writes in `wiki/` MUST begin with this frontmatter:
 
 ```yaml
 ---
@@ -54,7 +56,7 @@ updated: YYYY-MM-DD
 sources: ["[[Source Name]]", "[[Another Source]]"]
 tags: [concept/subconcept, another-tag]
 status: draft | reviewed | verified
-llm_model: "gemini-2.5-pro"
+llm_model: "gemini-3-pro"
 framework_version: "3.0.0"
 ---
 ```
@@ -63,7 +65,7 @@ framework_version: "3.0.0"
 - `sources` must use `[[wikilinks]]` — these create graph edges to source summaries
 - `tags` should be hierarchical: `#biology/genetics`, `#method/sequencing`
 - Update `updated:` every time you modify an article
-- `llm_model` — set to the Gemini model you are running (e.g. `gemini-2.5-pro`, `gemini-2.5-flash`). Check `gemini --version` or your session context to confirm the exact model name.
+- `llm_model` — set to the Antigravity model currently driving the session (e.g. `gemini-3-pro`, `gemini-3-flash`). Antigravity auto-selects the model; run `agy inspect` to confirm which model is active. This records which model wrote or last significantly updated the article.
 - `framework_version` tracks which framework version wrote this article — read from `_vault/VERSION` at write time
 
 ---
@@ -141,7 +143,7 @@ Deterministic engines append to this log automatically. The pipeline reads it to
 
 ## Available Skills
 
-Ten skills power this vault. They are loaded from `.gemini/skills/` at the vault root (generated by `install.sh`). Invoke them by describing what you want:
+Ten skills power this vault. They are loaded from `.agents/skills/` at the vault root (generated by `install.sh`) and surface as Antigravity slash commands. Invoke them by describing what you want, or with their slash command:
 
 | Skill | When to use |
 |-------|------------|
@@ -173,32 +175,31 @@ Ten skills power this vault. They are loaded from `.gemini/skills/` at the vault
 
 ---
 
-## Gemini-Specific Notes
+## Antigravity-Specific Notes
 
 ### Model identification
-Always set the `llm_model` frontmatter field on every article you write or significantly update. Use your exact model name, e.g.:
-- `gemini-2.5-pro` (default / recommended)
-- `gemini-2.5-flash`
-- `gemini-2.0-flash`
+Always set the `llm_model` frontmatter field on every article you write or significantly update. Antigravity auto-selects the model (there is no `--model` flag); record the model currently active in your session, e.g.:
+- `gemini-3-pro` (highest capability — recommended for synthesis/verification)
+- `gemini-3-flash` (default / fast)
 
-Run `gemini --version` if unsure which model is active.
+Run `agy inspect` if unsure which model and context files are active.
 
 ### Clean-context verification (vault-verify)
-The `vault-verify` skill calls for a clean-context subagent. In Gemini CLI, spawn one by running:
+The `vault-verify` skill calls for a clean-context subagent. In Antigravity CLI, spawn one with a one-shot prompt that carries no prior conversation history:
 ```bash
-gemini -p "$(cat <<'EOF'
+agy run "$(cat <<'EOF'
 You are a fact-checker with NO prior context...
 [paste article + verify.py output + raw sources]
 EOF
 )"
 ```
-Or open a fresh Gemini CLI session with no prior conversation history.
+Or open a fresh `agy` session in a new terminal with no prior conversation history.
 
 ### Tool availability
-All Bash, Read, Write, Edit, Glob, Grep, WebFetch, and WebSearch tools map to the equivalent Gemini CLI built-in tools. The Python engines in `_vault/lib/` are invoked via `uv run python _vault/lib/<engine>.py`.
+All Bash, Read, Write, Edit, Glob, Grep, WebFetch, and WebSearch capabilities map to the equivalent Antigravity CLI built-in tools. The Python engines in `_vault/lib/` are invoked via `uv run python _vault/lib/<engine>.py`.
 
 ### Skills discovery
-Skills are loaded from `.gemini/skills/` at the workspace root (hard-linked to `_vault/vault-*/SKILL.md` by `install.sh`). Run `bash _vault/install.sh` once after cloning to set up `.gemini/skills/` and all hard links. The directory is gitignored — skill content lives in `_vault/` which is tracked.
+Skills are loaded from `.agents/skills/` at the workspace root (hard-linked to `_vault/vault-*/SKILL.md` by `install.sh`), where each skill is registered as a slash command. Run `bash _vault/install.sh` once after cloning to set up `.agents/skills/` and all hard links. The directory is gitignored — skill content lives in `_vault/` which is tracked. If you are migrating an older vault that still has a `.gemini/skills/` directory, re-running `install.sh` provisions `.agents/skills/`; you can then delete the stale `.gemini/skills/` folder.
 
 ---
 
@@ -217,11 +218,11 @@ File names use kebab-case.
 
 ## MCP Integrations (Optional)
 
-These MCP servers enhance vault capabilities when installed in Gemini CLI. None are required — all core skills work without them.
+These MCP servers enhance vault capabilities when installed in Antigravity CLI. None are required — all core skills work without them.
 
 | MCP Server | Benefit | Install |
 |------------|---------|---------|
-| **Brave Search** or **Tavily** | Richer web search in `vault-verify` and `vault-qa` | Add to `.gemini/settings.json` |
+| **Brave Search** or **Tavily** | Richer web search in `vault-verify` and `vault-qa` | Add to Antigravity's MCP config |
 | **Zotero** | Sync your academic reference library | Community MCP |
 | **GitHub** | Ingest README/docs/wikis from public repos as sources | Community MCP |
 | **Obsidian** | Direct vault read/write without the CLI | Community MCP |

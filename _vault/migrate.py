@@ -488,7 +488,7 @@ def main():
     # LLM migration instructions
     if llm_migrations:
         print(f"\n⚠ {len(llm_migrations)} migration(s) require a semantic LLM step.")
-        print("  Run vault-migrate in Claude Code or Gemini CLI to complete these:\n")
+        print("  Run vault-migrate in Claude Code or Antigravity CLI to complete these:\n")
         for m in llm_migrations:
             instructions = m.get("llm_instructions", "(see migration spec)")
             header = f"  [{m['from']} \u2192 {m['to']}]"

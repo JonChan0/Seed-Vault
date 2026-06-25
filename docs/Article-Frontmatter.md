@@ -48,8 +48,8 @@ Records which model wrote or last significantly updated the article. Use the ful
 ```yaml
 llm_model: "claude-sonnet-4-6"    # Claude Code (Sonnet)
 llm_model: "claude-opus-4-6"      # Claude Code (Opus)
-llm_model: "gemini-2.5-pro"       # Gemini CLI (Pro)
-llm_model: "gemini-2.5-flash"     # Gemini CLI (Flash)
+llm_model: "gemini-3-pro"         # Antigravity CLI (Gemini 3 Pro)
+llm_model: "gemini-3-flash"       # Antigravity CLI (Gemini 3 Flash)
 ```
 
 This makes it easy to audit which model produced which content and to re-verify articles after switching models.

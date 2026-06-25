@@ -18,9 +18,12 @@ desktop.ini
 .claude/raw-manifest.txt
 .claude/worktrees/
 
-# Gemini CLI — project-local settings and generated skill links
+# Antigravity CLI — project-local settings and generated skill links
 # Skills are already tracked in _vault/vault-*/SKILL.md — no need to track the links too
-.gemini/skills/
+.agents/skills/
+.agents/
+# Legacy Gemini CLI skill links (superseded by .agents/skills/)
+.gemini/
 
 # Raw sources — often large or sensitive; opt-in per wiki instance
 # Uncomment to track raw sources in git:
