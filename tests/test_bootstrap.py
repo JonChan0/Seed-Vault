@@ -153,6 +153,47 @@ def test_update_leaves_content_byte_identical(src, tmp_path):
     assert (vault / "_vault" / "manifest.txt").is_file()
 
 
+def test_update_holds_version_when_llm_migration_pending(src, tmp_path):
+    """The 2.0.0→3.0.0 migration has a requires_llm step. After update, .vault_version
+    must stay at 2.0.0 (held) — NOT jump to 3.0.0 — until vault-migrate finishes the
+    manual step. Stamping 3.0.0 here is the bug that masks a half-finished update."""
+    vault = tmp_path / "vault"
+    _make_vault(src, vault, version="2.0.0")
+    r = _run(["update", "--version", "3.0.0", "--source-dir", str(src)], cwd=vault)
+    assert r.returncode == 0, r.stderr
+    assert (vault / ".vault_version").read_text().strip() == "2.0.0", \
+        "version must be held while a requires_llm migration is pending"
+    assert "vault-migrate" in (r.stdout + r.stderr).lower(), "the pending step must be surfaced"
+
+
+def test_rerun_update_resurfaces_pending_llm_migration(src, tmp_path):
+    """Reported bug: once .vault_version reached the target, re-running update silently
+    skipped the unfinished migration ('doesn't actually pull'). With the version held
+    back, a second update must STILL flag the pending LLM step, not hide it."""
+    vault = tmp_path / "vault"
+    _make_vault(src, vault, version="2.0.0")
+    _run(["update", "--version", "3.0.0", "--source-dir", str(src)], cwd=vault)
+    r2 = _run(["update", "--version", "3.0.0", "--source-dir", str(src)], cwd=vault)
+    assert r2.returncode == 0, r2.stderr
+    assert (vault / ".vault_version").read_text().strip() == "2.0.0"
+    assert "vault-migrate" in (r2.stdout + r2.stderr).lower()
+
+
+def test_complete_flag_finalizes_version_after_llm_step(src, tmp_path):
+    """vault-migrate calls `migrate.py --complete` after the manual step; only then
+    does .vault_version advance to the framework version."""
+    vault = tmp_path / "vault"
+    _make_vault(src, vault, version="2.0.0")
+    _run(["update", "--version", "3.0.0", "--source-dir", str(src)], cwd=vault)
+    assert (vault / ".vault_version").read_text().strip() == "2.0.0"
+    done = subprocess.run(
+        ["python3", "_vault/migrate.py", "--complete"],
+        cwd=str(vault), capture_output=True, text=True,
+    )
+    assert done.returncode == 0, done.stderr
+    assert (vault / ".vault_version").read_text().strip() == "3.0.0"
+
+
 def test_update_refuses_in_framework_source_repo(src, tmp_path):
     """A dir bearing the .seed-vault-framework marker must refuse self-update."""
     vault = tmp_path / "vault"

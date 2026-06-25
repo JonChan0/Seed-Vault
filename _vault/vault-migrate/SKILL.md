@@ -11,7 +11,8 @@ You are migrating a Seed Vault wiki from an older framework version to the curre
 - `bootstrap.sh update` syncs framework paths, bumping `_vault/VERSION` to the new framework version (and then runs `migrate.py` for you)
 - `.vault_version` at the vault root (gitignored, local-only) records what version the existing articles are at
 - `migrate.py` reads both and applies only the migrations between those two versions
-- After migration completes, it writes the new version into `.vault_version`
+- `migrate.py` is the **single authority** on `.vault_version`. It advances the record only as far as the migrations it can FULLY apply on its own. A migration with `requires_llm: true` is **held back**: its deterministic ops run, but `.vault_version` stays at that migration's `from` until the manual step is done. This is deliberate — if the version were stamped to the target before the LLM step ran, a half-finished update would look complete and both `bootstrap.sh update` and this skill's Step 1 would silently skip the pending migration.
+- After you complete the manual LLM step(s) in Step 4, you finalize the version with `uv run python _vault/migrate.py --complete`, which advances `.vault_version` to the framework version.
 
 `bootstrap.sh update` overwrites only the paths in `_vault/manifest.txt` and never touches `wiki/`, so framework updates can't conflict with your articles. Migration is the step that brings those local articles up to the new format afterward.
 
@@ -71,6 +72,14 @@ For each:
 5. Apply the change as described — be surgical
 6. Update `updated:` date on every file modified
 7. Report: "LLM migration applied to N articles"
+
+**Finalize the version.** Until you do this, `migrate.py` has deliberately held `.vault_version` at the pre-LLM version (so an unfinished migration can't masquerade as complete). Once every `requires_llm` step above is done, advance the record:
+
+```bash
+uv run python _vault/migrate.py --complete
+```
+
+This stamps `.vault_version` to the framework version. Skip it if any manual step is still outstanding — re-run the steps first.
 
 ### Known multi-step migrations
 

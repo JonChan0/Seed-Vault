@@ -40,10 +40,16 @@ are impossible.
 
 `update` runs the full cycle for you: sync framework → `_vault/install.sh` (re-link skills,
 `uv sync`) → `_vault/migrate.py` (migrate articles if the version bumped) → rebuild the index
-→ record the new version in `.vault_version`.
+→ record the version in `.vault_version`.
 
-> Migrations that need LLM reasoning (`requires_llm: true`) are flagged — finish them by
-> running `vault-migrate` in Claude Code or Gemini CLI (see §2).
+> **`.vault_version` records what your *content* is actually at, not just which framework files
+> are installed.** Migrations that need LLM reasoning (`requires_llm: true`) are flagged, and
+> `migrate.py` deliberately **holds `.vault_version` back** at the pre-migration version until you
+> finish them — otherwise a half-done update would look complete and the next `update` would
+> silently skip the pending step. Finish flagged migrations by running `vault-migrate` in Claude
+> Code or Gemini CLI (see §2); it advances the version for you once the manual step is done. Until
+> then, re-running `bootstrap.sh update` re-syncs the framework and keeps re-flagging the pending
+> migration rather than hiding it.
 
 ---
 
