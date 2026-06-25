@@ -345,6 +345,7 @@ def apply_migration(migration: dict, wiki_files: list, dry_run: bool) -> dict:
 def main():
     # Parse args
     dry_run = "--dry-run" in sys.argv
+    complete = "--complete" in sys.argv
     scope_path = None
     from_version_override = None
 
@@ -368,6 +369,18 @@ def main():
         raise SystemExit(f"Error: {VERSION_FILE} not found. Is this a Seed Vault repository?")
 
     framework_version = VERSION_FILE.read_text(encoding="utf-8").strip()
+
+    # --complete finalizes a held-back migration: the vault-migrate skill calls
+    # this AFTER performing the manual requires_llm step(s), to advance
+    # .vault_version to the framework version. It is the only thing that should
+    # advance the version past a requires_llm migration — migrate.py itself holds
+    # the version back (see the apply loop below) so a half-finished update can't
+    # masquerade as complete.
+    if complete:
+        write_vault_version(framework_version, dry_run)
+        print(f"Vault version finalized → {framework_version}")
+        return
+
     vault_version = from_version_override or read_vault_version()
 
     print(f"Framework version : {framework_version}  (from _vault/VERSION — synced by bootstrap.sh update)")
@@ -386,6 +399,9 @@ def main():
     migration_files = sorted(MIGRATIONS_DIR.glob("*.json"))
     if not migration_files:
         print(f"\nNo migration specs found in {MIGRATIONS_DIR}")
+        # Framework moved forward but ships no migrations — content needs nothing,
+        # so record that the vault is current. (migrate.py owns .vault_version.)
+        write_vault_version(framework_version, dry_run)
         return
 
     pending = []
@@ -401,6 +417,9 @@ def main():
 
     if not pending:
         print(f"\nNo applicable migrations found between {vault_version} and {framework_version}.")
+        # Nothing bridges the gap, so there is no content work to do — mark the
+        # vault current at the framework version.
+        write_vault_version(framework_version, dry_run)
         return
 
     # Report plan
@@ -417,10 +436,20 @@ def main():
 
     print()
 
-    # Apply each migration
+    # Apply each migration.
+    #
+    # The recorded vault version only advances past a migration this script can
+    # FULLY apply on its own. A requires_llm migration has a manual semantic step
+    # (handled afterwards by the vault-migrate skill) that migrate.py cannot
+    # perform — so we apply its deterministic operations but HOLD the recorded
+    # version at that migration's 'from' and stop. Advancing past it here would
+    # make a half-finished update look complete: the next `bootstrap.sh update`
+    # (and vault-migrate's own version check) would see vault == framework and
+    # silently skip the pending LLM step forever. vault-migrate advances the
+    # version with `migrate.py --complete` once the manual step is done.
     total_changed = 0
     llm_migrations = []
-    last_to_version = vault_version
+    safe_version = vault_version  # highest version fully applied so far
 
     for migration in pending:
         print(f"Applying {migration['from']} → {migration['to']}: {migration['description']}")
@@ -428,21 +457,26 @@ def main():
         if not migration.get("operations"):
             print("  (no structural operations — version step only)")
             append_migration_log(migration["from"], migration["to"], 0, dry_run)
-            last_to_version = migration["to"]
-            continue
-
-        stats = apply_migration(migration, wiki_files, dry_run)
-        append_migration_log(migration["from"], migration["to"], stats["changed"], dry_run)
-        last_to_version = migration["to"]
-        total_changed += stats["changed"]
-
-        print(f"  changed: {stats['changed']}  skipped: {stats['skipped']}  errors: {stats['errors']}")
+        else:
+            stats = apply_migration(migration, wiki_files, dry_run)
+            append_migration_log(migration["from"], migration["to"], stats["changed"], dry_run)
+            total_changed += stats["changed"]
+            print(f"  changed: {stats['changed']}  skipped: {stats['skipped']}  errors: {stats['errors']}")
 
         if migration.get("requires_llm"):
             llm_migrations.append(migration)
+            # Hold here — later migrations depend on this one finishing first.
+            break
 
-    print(f"\nUpdating vault version in .vault_version → {last_to_version}")
-    write_vault_version(last_to_version, dry_run)
+        safe_version = migration["to"]
+
+    last_to_version = safe_version
+    if llm_migrations:
+        print(f"\nVault version held at {safe_version} — a migration needs a manual LLM step")
+        print("and will advance once vault-migrate completes the step(s) below.")
+    else:
+        print(f"\nUpdating vault version in .vault_version → {safe_version}")
+    write_vault_version(safe_version, dry_run)
 
     # Summary
     print(f"\n{'─' * 50}")

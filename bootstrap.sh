@@ -227,12 +227,22 @@ if [ "$SUBCMD" = "update" ]; then
 
     info "Re-installing skills + deps"
     ( cd "$VAULT" && bash _vault/install.sh )
-    # migrate.py reads the OLD vault version (root or legacy wiki/.vault_version), applies
-    # pending migrations, and records progress — so it must run BEFORE we stamp the new
-    # version. Then stamp root .vault_version authoritatively (covers the no-migration case).
+    # migrate.py is the SINGLE authority on .vault_version. It reads the OLD vault
+    # version (root or legacy wiki/.vault_version) and advances the record only as
+    # far as the migrations it can FULLY apply — holding the version back at a
+    # requires_llm migration until vault-migrate completes the manual step. We must
+    # NOT clobber it up to $BARE here: doing so masks a half-finished update and
+    # makes the next `update` (and vault-migrate) silently skip the pending step.
     info "Applying content migrations"
     ( cd "$VAULT" && python3 _vault/migrate.py ) || warn "migrate.py reported an issue — review above."
-    echo "$BARE" > "$VAULT/.vault_version"
+    # Surface whether content is still behind the framework (root, then legacy file).
+    POST="unknown"
+    [ -f "$VAULT/.vault_version" ] && POST="$(tr -d '[:space:]' < "$VAULT/.vault_version")"
+    [ "$POST" = "unknown" ] && [ -f "$VAULT/wiki/.vault_version" ] && POST="$(tr -d '[:space:]' < "$VAULT/wiki/.vault_version")"
+    if [ "$POST" != "$BARE" ]; then
+        warn "Framework synced to $BARE, but wiki content is at $POST."
+        warn "A migration needs a manual step — run the vault-migrate skill in Claude Code / Gemini CLI to finish."
+    fi
     if command -v uv >/dev/null 2>&1 && [ -f "$VAULT/_vault/lib/index.py" ]; then
         info "Rebuilding index"
         ( cd "$VAULT" && uv run python _vault/lib/index.py --rebuild-qmd ) || warn "Index rebuild failed — run vault-index manually."
