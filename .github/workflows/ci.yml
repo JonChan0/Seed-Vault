@@ -33,11 +33,15 @@ jobs:
       - name: Install pandoc
         run: sudo apt-get update && sudo apt-get install -y pandoc
 
-      # Install Node + qmd search indexer
+      # Install Node + qmd search indexer. qmd runs on the bun runtime, so bun
+      # must be installed too or `qmd` is present but non-functional.
       - name: Set up Node
         uses: actions/setup-node@v4
         with:
           node-version: "20"
+
+      - name: Set up bun (qmd runtime)
+        uses: oven-sh/setup-bun@v2
 
       - name: Install qmd
         run: npm install -g @tobilu/qmd
