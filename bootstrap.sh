@@ -9,14 +9,17 @@
 # those paths and nothing else, so notes are safe by construction.
 #
 # Usage:
-#   bootstrap.sh new <target-dir> [--version vX.Y.Z] [--dry-run] [--source-dir DIR]
+#   bootstrap.sh new <target-dir> [--version vX.Y.Z | --main] [--dry-run] [--source-dir DIR]
 #       Create a fresh vault in <target-dir>.
 #
-#   bootstrap.sh update [--version vX.Y.Z] [--dry-run] [--source-dir DIR] [--no-push]
+#   bootstrap.sh update [--version vX.Y.Z | --main] [--dry-run] [--source-dir DIR] [--no-push]
 #       Update the vault in the current directory. Default version = latest tag.
 #
 # Options:
 #   --version vX.Y.Z   Pin to a specific release tag (default: latest tag on origin).
+#   --main             Install the bleeding-edge tip of the 'main' branch instead of a
+#                      release tag. Recorded version = the _vault/VERSION shipped on main.
+#                      Mutually exclusive with --version.
 #   --dry-run          Show what would change; write nothing.
 #   --source-dir DIR   Install from a local framework checkout instead of downloading
 #                      (DIR must contain _vault/manifest.txt). Useful offline / for testing.
@@ -43,6 +46,7 @@ die()     { error "$1"; exit 1; }
 SUBCMD="${1:-}"; shift || true
 
 VERSION=""
+USE_MAIN=false
 DRY_RUN=false
 SOURCE_DIR=""
 TARGET_DIR=""
@@ -50,6 +54,7 @@ TARGET_DIR=""
 while [ $# -gt 0 ]; do
     case "$1" in
         --version)    VERSION="${2:-}"; shift 2 ;;
+        --main)       USE_MAIN=true; shift ;;
         --dry-run)    DRY_RUN=true; shift ;;
         --source-dir) SOURCE_DIR="${2:-}"; shift 2 ;;
         --no-push)    shift ;;  # back-compat no-op
@@ -57,6 +62,11 @@ while [ $# -gt 0 ]; do
         *)            TARGET_DIR="$1"; shift ;;
     esac
 done
+
+# --version and --main both pick a ref — can't honor both.
+if $USE_MAIN && [ -n "$VERSION" ]; then
+    die "--main and --version are mutually exclusive."
+fi
 
 DRY_LABEL=""
 $DRY_RUN && DRY_LABEL=" (DRY RUN)"
@@ -78,6 +88,9 @@ resolve_latest_tag() {
 # Strip optional leading 'v' → bare semver
 to_bare() { echo "${1#v}"; }
 
+# Read the bare semver a fetched framework tree ships in _vault/VERSION (used for --main).
+read_src_version() { tr -d '[:space:]' < "$1/_vault/VERSION" 2>/dev/null; }
+
 # ── Fetch framework into a temp dir; echo the extracted root path ─────────────
 fetch_framework() {
     local bare="$1" tmp root
@@ -94,19 +107,26 @@ fetch_framework() {
         fi
         root="$tmp"
     else
-        local tag="v$bare" url="$REPO_URL/archive/refs/tags/v$bare.tar.gz"
-        info "Downloading framework $tag from $REPO_URL" >&2
+        local ref url label
+        if $USE_MAIN; then
+            ref="main"; label="branch main"
+            url="$REPO_URL/archive/refs/heads/main.tar.gz"
+        else
+            ref="v$bare"; label="tag $ref"
+            url="$REPO_URL/archive/refs/tags/v$bare.tar.gz"
+        fi
+        info "Downloading framework ($label) from $REPO_URL" >&2
         if command -v curl >/dev/null 2>&1; then
-            curl -fsSL "$url" | tar -xz -C "$tmp" || die "Download/extract failed for tag $tag"
+            curl -fsSL "$url" | tar -xz -C "$tmp" || die "Download/extract failed for $label"
         elif command -v wget >/dev/null 2>&1; then
-            wget -qO- "$url" | tar -xz -C "$tmp" || die "Download/extract failed for tag $tag"
+            wget -qO- "$url" | tar -xz -C "$tmp" || die "Download/extract failed for $label"
         else
             command -v git >/dev/null 2>&1 || die "Need curl, wget, or git to fetch the framework."
-            git clone --depth 1 --branch "$tag" "$REPO_URL" "$tmp/clone" >/dev/null 2>&1 \
-                || die "git clone of tag $tag failed."
+            git clone --depth 1 --branch "$ref" "$REPO_URL" "$tmp/clone" >/dev/null 2>&1 \
+                || die "git clone of $label failed."
             root="$tmp/clone"; echo "$root"; return
         fi
-        # tarball extracts to a single Seed-Vault-<bare>/ dir
+        # tarball extracts to a single Seed-Vault-<ref>/ dir (e.g. Seed-Vault-3.0.0 or Seed-Vault-main)
         root="$(find "$tmp" -maxdepth 1 -type d -name 'Seed-Vault-*' | head -1)"
         [ -n "$root" ] || root="$tmp"
     fi
@@ -159,6 +179,19 @@ display_name() {
         | awk '{for(i=1;i<=NF;i++) $i=toupper(substr($i,1,1)) tolower(substr($i,2))}1'
 }
 
+# ── Default ref: latest release tag, falling back to 'main' if none exists ────
+# Only when the user pinned nothing (no --main, no --version) and isn't installing
+# from a local --source-dir. If origin has no release tag yet, install from main.
+if ! $USE_MAIN && [ -z "$VERSION" ] && [ -z "$SOURCE_DIR" ]; then
+    LATEST_TAG="$(resolve_latest_tag)"
+    if [ -z "$LATEST_TAG" ]; then
+        warn "No release tag found on origin — falling back to the 'main' branch."
+        USE_MAIN=true
+    else
+        VERSION="v$LATEST_TAG"  # pin it so the subcommand doesn't re-query origin
+    fi
+fi
+
 # ============================================================================
 # Subcommand: new
 # ============================================================================
@@ -168,12 +201,19 @@ if [ "$SUBCMD" = "new" ]; then
         die "Target '$TARGET_DIR' exists and is not empty. Use 'update' inside an existing vault."
     fi
 
-    BARE="$(to_bare "${VERSION:-$(resolve_latest_tag)}")"
-    [ -n "$BARE" ] || die "Could not resolve a version. Pass --version vX.Y.Z."
-    header "Seed Vault — new vault @ $BARE$DRY_LABEL"
-
-    SRC="$(fetch_framework "$BARE")"
-    info "Framework source: $SRC"
+    if $USE_MAIN; then
+        header "Seed Vault — new vault @ main$DRY_LABEL"
+        SRC="$(fetch_framework main)"
+        BARE="$(read_src_version "$SRC")"
+        [ -n "$BARE" ] || die "main tree has no readable _vault/VERSION."
+        info "Framework source: $SRC (main → version $BARE)"
+    else
+        BARE="$(to_bare "${VERSION:-$(resolve_latest_tag)}")"
+        [ -n "$BARE" ] || die "Could not resolve a version. Pass --version vX.Y.Z."
+        header "Seed Vault — new vault @ $BARE$DRY_LABEL"
+        SRC="$(fetch_framework "$BARE")"
+        info "Framework source: $SRC"
+    fi
 
     if $DRY_RUN; then
         info "Would install into: $TARGET_DIR"
@@ -212,14 +252,20 @@ if [ "$SUBCMD" = "update" ]; then
         die "This is the framework SOURCE repo, not a vault — refusing to self-update. Tag a release instead."
     fi
 
-    BARE="$(to_bare "${VERSION:-$(resolve_latest_tag)}")"
-    [ -n "$BARE" ] || die "Could not resolve a version. Pass --version vX.Y.Z."
     CUR="unknown"; [ -f "$VAULT/.vault_version" ] && CUR="$(tr -d '[:space:]' < "$VAULT/.vault_version")"
     [ "$CUR" = "unknown" ] && [ -f "$VAULT/wiki/.vault_version" ] && CUR="$(tr -d '[:space:]' < "$VAULT/wiki/.vault_version")"
 
-    header "Seed Vault — update $CUR → $BARE$DRY_LABEL"
-
-    SRC="$(fetch_framework "$BARE")"
+    if $USE_MAIN; then
+        SRC="$(fetch_framework main)"
+        BARE="$(read_src_version "$SRC")"
+        [ -n "$BARE" ] || die "main tree has no readable _vault/VERSION."
+        header "Seed Vault — update $CUR → $BARE (main)$DRY_LABEL"
+    else
+        BARE="$(to_bare "${VERSION:-$(resolve_latest_tag)}")"
+        [ -n "$BARE" ] || die "Could not resolve a version. Pass --version vX.Y.Z."
+        header "Seed Vault — update $CUR → $BARE$DRY_LABEL"
+        SRC="$(fetch_framework "$BARE")"
+    fi
     info "Syncing framework paths (manifest-scoped — content untouched)"
     sync_manifest "$SRC" "$VAULT"
 
