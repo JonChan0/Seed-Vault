@@ -10,13 +10,12 @@ you run the deterministic engines, then spawn **context-bounded subagents** that
 each call the relevant `vault-*` skill. Parallelise where context is disparate
 (ingest, verify); serialise where context is shared (synthesis).
 
-assess (deterministic)
-   → N × source-ingestor   (parallel — one per raw file, Sonnet)
-   → 1 × wiki-synthesizer   (serial — whole graph, Opus)
-   → N × clean-room-verifier (parallel — one per new article, Opus)
-   → apply fixes (orchestrator) + lint + digest (deterministic)
-   → log + report
-```
+    assess (deterministic)
+       → N × source-ingestor   (parallel — one per raw file, Sonnet)
+       → 1 × wiki-synthesizer   (serial — whole graph, Opus)
+       → N × clean-room-verifier (parallel — one per new article, Opus)
+       → apply fixes (orchestrator) + lint + digest (deterministic)
+       → log + report
 
 Agents live in `.claude/agents/` (generated from `_vault/agents/`). Spawn them
 with the `Agent` tool using `subagent_type: "<agent-name>"`. **To run instances
