@@ -40,6 +40,9 @@ except ImportError:
     _FUZZY_AVAILABLE = False
     _fuzz = None  # type: ignore
 
+# Minimum thefuzz partial_ratio (0-100) for a claim to count as a partial
+# match. 75 tolerates wording/whitespace drift between article and source
+# while staying high enough to reject unrelated lines.
 FUZZY_THRESHOLD = 75
 
 # Per-run cache of source file line lists, populated on first access in
@@ -185,6 +188,11 @@ def _wikilink_to_source_path(wikilink: str) -> Path | None:
     return candidate if candidate.exists() else None
 
 
+def _first_existing(*candidates: Path) -> Path | None:
+    """Return the first candidate path that exists, or None."""
+    return next((c for c in candidates if c.exists()), None)
+
+
 def _find_raw_file_for_source(source_path: Path) -> Path | None:
     """
     Read a source summary's frontmatter to discover which raw file it covers.
@@ -201,22 +209,21 @@ def _find_raw_file_for_source(source_path: Path) -> Path | None:
     orig = fm.get("original_source")
     if orig:
         orig_str = _strip_wikilink_brackets(str(orig))
-        for suffix in ("", ".md"):
-            for base in (VAULT_ROOT, RAW_DIR):
-                candidate = base / f"{orig_str}{suffix}"
-                if candidate.exists():
-                    return candidate
+        hit = _first_existing(
+            *(base / f"{orig_str}{suffix}"
+              for suffix in ("", ".md")
+              for base in (VAULT_ROOT, RAW_DIR))
+        )
+        if hit:
+            return hit
 
     # 2. Explicit raw_file or source_file field
     for field in ("raw_file", "source_file"):
         val = fm.get(field)
         if val:
-            candidate = VAULT_ROOT / str(val)
-            if candidate.exists():
-                return candidate
-            candidate2 = RAW_DIR / str(val)
-            if candidate2.exists():
-                return candidate2
+            hit = _first_existing(VAULT_ROOT / str(val), RAW_DIR / str(val))
+            if hit:
+                return hit
 
     # 3. sources field may point to a raw file path
     src_list = fm.get("sources", []) or []
@@ -225,10 +232,9 @@ def _find_raw_file_for_source(source_path: Path) -> Path | None:
     for src in src_list:
         src_str = _strip_wikilink_brackets(str(src))
         if "." in Path(src_str).suffix:
-            for base in (VAULT_ROOT, RAW_DIR):
-                candidate = base / src_str
-                if candidate.exists():
-                    return candidate
+            hit = _first_existing(VAULT_ROOT / src_str, RAW_DIR / src_str)
+            if hit:
+                return hit
 
     # 4. Stem-based match in raw/: source summary is summary-foo → look for foo.*
     stem = source_path.stem  # e.g. "summary-climate-change"
@@ -357,6 +363,25 @@ def _search_in_lines(
     return "none", None, best_score if best_score else None
 
 
+def _claim_result(
+    claim: dict[str, str],
+    source_file: str | None,
+    match_type: str,
+    matched_text: str | None,
+    score: int | None,
+) -> dict[str, Any]:
+    """Build a verification result dict in the report schema."""
+    return {
+        "claim_text": claim["context"],
+        "value": claim["value"],
+        "type": claim["type"],
+        "source_file": source_file,
+        "match_type": match_type,
+        "matched_text": matched_text,
+        "score": score,
+    }
+
+
 def verify_claim(
     claim: dict[str, str], source_files: list[Path]
 ) -> dict[str, Any]:
@@ -366,17 +391,7 @@ def verify_claim(
     Returns a result dict matching the report schema.
     """
     value = claim["value"]
-    claim_text = claim["context"]
-
-    best_result: dict[str, Any] = {
-        "claim_text": claim_text,
-        "value": value,
-        "type": claim["type"],
-        "source_file": None,
-        "match_type": "none",
-        "matched_text": None,
-        "score": None,
-    }
+    best_result = _claim_result(claim, None, "none", None, None)
 
     for file_path in source_files:
         lines = _source_lines_cache.get(file_path)
@@ -384,16 +399,9 @@ def verify_claim(
             lines = _split_lines(_read_text(file_path))
             _source_lines_cache[file_path] = lines
         match_type, matched_text, score = _search_in_lines(value, lines)
+        rel = str(file_path.relative_to(VAULT_ROOT))
         if match_type == "exact":
-            return {
-                "claim_text": claim_text,
-                "value": value,
-                "type": claim["type"],
-                "source_file": str(file_path.relative_to(VAULT_ROOT)),
-                "match_type": "exact",
-                "matched_text": matched_text,
-                "score": 100,
-            }
+            return _claim_result(claim, rel, "exact", matched_text, 100)
         if match_type == "partial":
             # Keep best partial so far
             if best_result["match_type"] == "none" or (
@@ -401,15 +409,7 @@ def verify_claim(
                 and best_result["score"] is not None
                 and score > best_result["score"]
             ):
-                best_result = {
-                    "claim_text": claim_text,
-                    "value": value,
-                    "type": claim["type"],
-                    "source_file": str(file_path.relative_to(VAULT_ROOT)),
-                    "match_type": "partial",
-                    "matched_text": matched_text,
-                    "score": score,
-                }
+                best_result = _claim_result(claim, rel, "partial", matched_text, score)
 
     return best_result
 

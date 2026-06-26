@@ -26,7 +26,7 @@ INDEX_FILE = WIKI_DIR / "_index.md"
 # Add vault root to path to allow relative imports of _vault.lib
 sys.path.append(str(VAULT_ROOT))
 
-from _vault.lib.vault_frontmatter import (
+from _vault.lib.vault_frontmatter import (  # noqa: E402
     build_vault_map,
     extract_frontmatter_links,
     extract_wikilinks,
