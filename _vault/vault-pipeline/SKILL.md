@@ -1,185 +1,153 @@
 ---
 name: vault-pipeline
-description: Run the full pipeline in one pass. Use when the user says "process everything", "update the wiki", "run the pipeline", "process all sources", "ingest and compile", "full update", "sync the wiki", or drops multiple files and wants everything handled end to end. Orchestrates vault-ingest → vault-compile → vault-index → vault-verify → vault-lint automatically.
+description: Run the full pipeline in one pass. Use when the user says "process everything", "update the wiki", "run the pipeline", "process all sources", "ingest and compile", "full update", "sync the wiki", or drops multiple files and wants everything handled end to end. Orchestrates context-bounded subagents — parallel source-ingestor → single wiki-synthesizer → parallel clean-room-verifier — with deterministic assess/lint/digest in between.
 ---
 
-# vault-pipeline — Full Pipeline Orchestration
+# vault-pipeline — Agent-Orchestrated Pipeline
 
-You are running the complete Seed Vault pipeline end-to-end. This skill orchestrates the core skills in sequence, handling a batch of new or updated sources from `raw/` through to a fully indexed, verified, and linted wiki.
+You are the **orchestrator**. You do not ingest, synthesize, or verify yourself —
+you run the deterministic engines, then spawn **context-bounded subagents** that
+each call the relevant `vault-*` skill. Parallelise where context is disparate
+(ingest, verify); serialise where context is shared (synthesis).
+
+    assess (deterministic)
+       → N × source-ingestor   (parallel — one per raw file, Sonnet)
+       → 1 × wiki-synthesizer   (serial — whole graph, Opus)
+       → N × clean-room-verifier (parallel — one per new article, Opus)
+       → apply fixes (orchestrator) + lint + digest (deterministic)
+       → log + report
+
+Agents live in `.claude/agents/` (generated from `_vault/agents/`). Spawn them
+with the `Agent` tool using `subagent_type: "<agent-name>"`. **To run instances
+in parallel, emit multiple `Agent` calls in a single message.** Each agent's
+`model` is pinned in its profile — do not pass a `model` override.
 
 ---
 
-## Step 1: Assess the Current State (Deterministic)
-
-Run the pipeline assessment engine:
+## Step 1: Assess (Deterministic — orchestrator)
 
 ```bash
 uv run python _vault/lib/pipeline.py --json
 ```
 
-This scans `raw/` and `wiki/sources/`, classifying files as new, updated, or unchanged. Read the JSON output to understand what needs processing.
+Classifies `raw/` files as new / updated / unchanged.
 
-If there are 0 new sources and 0 updates, report this and stop: "Nothing new to process. Run `vault-lint` if you want a health check, or `vault-qa` to query the wiki."
-
-If there are more than 10 new sources, ask: "There are {{N}} new sources to process. This will take a while. Process all, or just the most recent 5?"
-
----
-
-## Step 2: Convert Non-Markdown Files (Deterministic)
-
-For each new file that `needs_conversion` (PDF, HTML, DOCX, etc.):
-
-```bash
-uv run python _vault/lib/convert.py "{{raw_filepath}}" raw/
-```
-
-This produces clean markdown in `raw/`. If conversion fails, fall back to Claude's native file reading capabilities.
+- 0 new + 0 updated → stop: "Nothing new to process. Run vault-lint for a health
+  check, or vault-qa to query the wiki."
+- >10 new → ask: "There are {{N}} new sources. Process all, or just the most
+  recent 5?"
 
 ---
 
-## Step 3: Ingest New Sources (LLM — vault-ingest logic)
+## Step 2: Ingest — parallel `source-ingestor` fan-out
 
-For each new or updated source file in `raw/`:
-
-1. Read the raw file
-2. Create or update `wiki/sources/summary-{{name}}.md` with the standard source summary structure
-3. Note any new concepts flagged under `## Concepts Extracted`
-
-Track progress: "Ingested {{N}}/{{total}}: {{filename}}"
-
----
-
-## Step 4: Compile New Concepts (LLM — vault-compile logic)
-
-After all ingestion is complete:
-
-1. Collect every concept marked "needs article" from the source summaries processed in Step 3
-2. Cross-reference against `wiki/_index.md` to find which ones truly have no article yet
-3. For each genuinely new concept, write a `wiki/concepts/{{name}}.md` using the standard concept article structure
-4. Maintain all backlinks — update existing articles that should reference the new concepts
-
-Track progress: "Compiled {{N}}/{{total}} concept articles."
-
----
-
-## Step 5: Rebuild Index (Deterministic)
-
-Run the index engine. Pass `--no-cleanup` so mid-pipeline summaries that have not
-yet been wired up to concept articles are not eagerly deleted as orphans:
-
-```bash
-uv run python _vault/lib/index.py --rebuild-qmd --no-cleanup
-```
-
-This regenerates `wiki/_index.md` and rebuilds the qmd search index.
-Run `vault-lint` afterwards to handle orphaned-source cleanup at end-of-pipeline.
-
----
-
-## Step 6: Verify New Articles (Clean-Context Subagent)
-
-For each newly compiled concept article, run verification using a **clean-context subagent** to prevent confirmation bias:
-
-### 6a: Run Deterministic Claim Extraction
-
-```bash
-uv run python _vault/lib/verify.py "{{article_path}}" --json
-```
-
-This extracts verifiable claims and matches them against raw sources.
-
-### 6b: Launch Verification Subagent
-
-For each article, launch a subagent with `Agent(subagent_type="general-purpose")` containing ONLY:
-- The article content
-- The verify.py JSON output (including the `source_warnings` list)
-- The raw source file contents referenced by the article
-- These instructions:
+For each new/updated source, spawn one `source-ingestor` agent. **Batch all
+spawns into a single message** so they run in parallel. Each agent receives one
+`raw/` filepath and handles its own conversion (`convert.py`) internally.
 
 ```
-You are a fact-checker. You have NO prior context about this wiki or its creation.
-
-Given:
-- ARTICLE: [article content]
-- SOURCE MATCH REPORT: [verify.py output]
-- SOURCE WARNINGS: [source_warnings list from verify.py — may be empty]
-- RAW SOURCES: [source files]
-
-Tasks:
-1. If SOURCE WARNINGS is non-empty, the source resolution was incomplete —
-   note that vault-lint should be run for raw_coverage / broken_wikilinks issues
-2. For each claim in the article, assess if the raw sources support it
-3. Flag claims with no source support as UNSUPPORTED
-4. Flag claims that contradict sources as CONTRADICTED
-5. Rate overall confidence: HIGH / MEDIUM / LOW
-6. Output a verification report in markdown
+Agent(subagent_type="source-ingestor",
+      description="Ingest <filename>",
+      prompt="Ingest exactly this one raw source: raw/<filename>. Convert first if non-markdown. Return summary_path and concepts_needing_article.")
 ```
 
-### 6c: Process Verification Results
-
-Read the subagent's verification report. If any claims are CONTRADICTED:
-- Fix the article to match the source
-- Update `updated:` date
-
-If confidence is LOW, add `status: draft` and a note about unverified claims.
+Collect each agent's hand-back. On a single ingest failure, log it and continue —
+do not abort the batch. Aggregate the union of `concepts_needing_article` and the
+list of summary paths created.
 
 ---
 
-## Step 7: Lint Check (Deterministic + LLM)
+## Step 3: Synthesize — single `wiki-synthesizer` (serial)
 
-Run a targeted lint pass:
+After **all** ingestors return, spawn exactly **one** `wiki-synthesizer`. It owns
+whole-graph interlinking, so never run two in parallel.
 
-```bash
-uv run python _vault/lib/lint.py --json
+```
+Agent(subagent_type="wiki-synthesizer",
+      description="Synthesize new concepts",
+      prompt="Source summaries just ingested: <list>. Concepts flagged needing articles: <aggregated list>. Compile genuinely-new concept articles with bidirectional links, then rebuild the index (--no-cleanup). Return articles_created / articles_updated.")
 ```
 
-Review the output. For the articles touched in this pipeline run, check:
-1. **Broken wikilinks** in newly written articles
-2. **Missing backlinks** — new articles should have reverse links
-3. **Index sync** — all new articles appear in the index
-
-Fix missing backlinks manually: for each pair A→B where B lacks a link back to A, append `- [[a-stem|A Title]]` under B's `## See Also` section.
+Capture `articles_created`.
 
 ---
 
-## Step 8: Log and Report
+## Step 4: Verify — parallel `clean-room-verifier` fan-out
+
+For each article in `articles_created`, spawn one `clean-room-verifier`. **Batch
+all spawns into a single message** for parallelism. Verifiers are read-only and
+context-isolated — they return reports, they do not edit.
+
+```
+Agent(subagent_type="clean-room-verifier",
+      description="Verify <article>",
+      prompt="Fact-check this one article with no prior context: wiki/concepts/<stem>.md. Run verify.py, follow vault-verify, return per-claim status, confidence, and recommended_fixes.")
+```
+
+---
+
+## Step 5: Apply fixes + Lint + Digest (Deterministic — orchestrator)
+
+1. For any CONTRADICTED claim in a verifier report, apply the `recommended_fixes`
+   to the article and bump its `updated:` date. If a verifier returned LOW
+   confidence, set `status: draft` and note the unverified claims.
+2. If you edited any article, rebuild the index:
+   ```bash
+   uv run python _vault/lib/index.py --rebuild-qmd
+   ```
+3. Final lint (handles orphaned-source cleanup deferred by Step 3's `--no-cleanup`):
+   ```bash
+   uv run python _vault/lib/lint.py --json
+   ```
+   Fix broken wikilinks and missing backlinks in the run's articles.
+4. Digest for the summary stats:
+   ```bash
+   uv run python _vault/lib/digest.py
+   ```
+
+---
+
+## Step 6: Log and Report
 
 Append to `wiki/_log.md`:
 ```
 [{{today}} pipeline] Ingested {{N}} sources, compiled {{N}} concepts, verified {{N}} articles
 ```
 
-Output a concise summary:
-
+Output:
 ```
 Pipeline complete — {{today}}
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Sources ingested:      {{N}}
-Concept articles:      {{N created}} created, {{N updated}} updated
-Index rebuilt:         Yes (+ qmd updated)
-Verification:          {{N}} articles checked
+Sources ingested:   {{N}}   (parallel source-ingestor)
+Concept articles:   {{C}} created, {{U}} updated   (wiki-synthesizer)
+Index rebuilt:      Yes (+ qmd)
+Verification:       {{V}} articles   (parallel clean-room-verifier)
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-New concepts created:
+New concepts:
   - [[concept-a|Concept A]]
-  - [[concept-b|Concept B]]
-
 Verification issues:
-  - {{issue if any, or "None — all claims supported"}}
-
+  - {{issue or "None — all claims supported"}}
 Lint issues:
-  - {{issue if any, or "None"}}
-
-Suggested next steps:
-  1. Review any verification warnings in newly created articles
-  2. Run `vault-lint` for a full wiki health check
-  3. Run `vault-qa` to query the expanded wiki
+  - {{issue or "None"}}
+Next steps:
+  1. Review verification warnings in new articles
+  2. vault-lint for full health check
+  3. vault-qa to query the expanded wiki
 ```
 
 ---
 
 ## Notes
 
-- **Idempotent**: Running the pipeline twice on the same sources is safe — pipeline.py detects already-summarized files and skips them
-- **Partial failure**: If one source fails to ingest, log the error and continue with the remaining sources — don't abort the whole pipeline
-- **Manual overrides**: If the user says "force re-ingest {{file}}", re-process that source even if a summary already exists
-- **Verification bias prevention**: The verify step uses a clean-context subagent that has never seen the compilation conversation — this prevents the LLM from rubber-stamping its own work
+- **Why agents:** each profile is a context boundary. Ingest and verify have
+  disparate per-item context → parallel instances. Synthesis needs the whole
+  graph → one serial instance. See `_vault/agents/SPEC.md`.
+- **Idempotent:** pipeline.py skips already-summarized files; rerunning is safe.
+- **Partial failure:** one agent failing does not abort the batch — log and go on.
+- **Force re-ingest:** if the user says "force re-ingest {{file}}", spawn a
+  source-ingestor for it even if a summary exists.
+- **Bias prevention:** verification runs in fresh-context agents that never saw
+  the synthesis conversation — they cannot rubber-stamp their own work, and they
+  hold no Write tool so they cannot silently "fix" to agree.
+- **Visualization & QA** are not in this path — spawn `visualizer` or
+  `qa-responder` directly when the user asks for a chart or a question.

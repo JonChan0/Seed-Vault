@@ -102,6 +102,58 @@ echo "Skills are project-local and auto-loaded — no /reload-plugins needed."
 
 echo ""
 
+# ── Claude Code: project-local agents (.claude/agents/) ──────────────────────
+# Agent profiles are context-bounded subagents the vault-pipeline skill spawns.
+# Source lives in _vault/agents/<name>.md (framework-owned, tracked by manifest);
+# here we symlink each into .claude/agents/<name>.md (flat files, gitignored).
+AGENTS_SRC_DIR="$SCRIPT_DIR/agents"
+CLAUDE_AGENTS_DIR="$VAULT_ROOT/.claude/agents"
+
+if [ -d "$AGENTS_SRC_DIR" ]; then
+    mkdir -p "$CLAUDE_AGENTS_DIR"
+    echo "Installing Claude Code project agents to .claude/agents/..."
+    echo ""
+
+    agents_installed=0
+    agents_updated=0
+
+    for agent_md in "$AGENTS_SRC_DIR"/*.md; do
+        [ -f "$agent_md" ] || continue
+        agent_file=$(basename "$agent_md")
+        # SPEC.md is documentation, not an agent profile — skip it.
+        [ "$agent_file" = "SPEC.md" ] && continue
+        target="$CLAUDE_AGENTS_DIR/$agent_file"
+
+        # Relative path from .claude/agents/ to _vault/agents/.
+        # .claude/agents/ is two levels below VAULT_ROOT; _vault/ is one.
+        rel_path="../../_vault/agents/$agent_file"
+
+        if [ -L "$target" ]; then
+            current="$(readlink "$target" 2>/dev/null || true)"
+            if [ "$current" = "$rel_path" ]; then
+                echo "  = Current:   ${agent_file%.md}"
+                continue
+            fi
+            rm "$target"
+            ln -s "$rel_path" "$target"
+            echo "  ↻ Updated:   ${agent_file%.md}"
+            agents_updated=$((agents_updated + 1))
+        elif [ -f "$target" ]; then
+            echo "  ⚠ Skipped:   ${agent_file%.md} (real file at $target — remove manually to replace)"
+        else
+            ln -s "$rel_path" "$target"
+            echo "  ✓ Installed: ${agent_file%.md}"
+            agents_installed=$((agents_installed + 1))
+        fi
+    done
+
+    echo ""
+    echo "Claude agents ready in .claude/agents/ (installed: $agents_installed  updated: $agents_updated)."
+fi
+# ─────────────────────────────────────────────────────────────────────────────
+
+echo ""
+
 # ── Vault name templating ─────────────────────────────────────────────────────
 # README is templated ONCE by bootstrap.sh when creating a vault (`bootstrap.sh new`),
 # not here — install.sh re-runs on every update and would re-clobber a vault's title.

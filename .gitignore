@@ -13,6 +13,8 @@ desktop.ini
 # Claude Code — project-local settings and generated skill links
 # Skills are already tracked in _vault/vault-*/SKILL.md — no need to track the links too
 .claude/skills/
+# Agents are tracked in _vault/agents/*.md — the .claude/agents links are generated
+.claude/agents/
 .claude/settings.local.json
 .claude/todos.json
 .claude/raw-manifest.txt
