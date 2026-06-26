@@ -21,9 +21,9 @@ Usage:
 
 from __future__ import annotations
 
+import argparse
 import json
 import re
-import sys
 from datetime import date
 from pathlib import Path
 
@@ -345,24 +345,80 @@ def apply_migration(migration: dict, wiki_files: list, dry_run: bool) -> dict:
 
 # ── Main ──────────────────────────────────────────────────────────────────────
 
-def main():
-    # Parse args
-    dry_run = "--dry-run" in sys.argv
-    complete = "--complete" in sys.argv
-    scope_path = None
-    from_version_override = None
+def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
+    parser = argparse.ArgumentParser(
+        description="Apply pending Seed Vault wiki migrations."
+    )
+    parser.add_argument(
+        "--dry-run", action="store_true",
+        help="Show what would change without writing any files.",
+    )
+    parser.add_argument(
+        "--complete", action="store_true",
+        help="Finalize .vault_version after a manual requires_llm step.",
+    )
+    parser.add_argument(
+        "--path", dest="scope_path", default=None,
+        help="Scope migration to a subdirectory (e.g. wiki/topics/).",
+    )
+    parser.add_argument(
+        "--from-version", dest="from_version", default=None,
+        help="Override the detected vault version.",
+    )
+    return parser.parse_args(argv)
 
-    args = sys.argv[1:]
-    i = 0
-    while i < len(args):
-        if args[i] == "--path" and i + 1 < len(args):
-            scope_path = args[i + 1]
-            i += 2
-        elif args[i] == "--from-version" and i + 1 < len(args):
-            from_version_override = args[i + 1]
-            i += 2
+
+def _apply_pending(
+    pending: list[dict],
+    wiki_files: list[Path],
+    vault_version: str,
+    dry_run: bool,
+) -> tuple[str, int, list[dict]]:
+    """Apply each pending migration's deterministic operations in order.
+
+    The recorded vault version only advances past a migration this script can
+    FULLY apply on its own. A requires_llm migration has a manual semantic step
+    (handled afterwards by the vault-migrate skill) that migrate.py cannot
+    perform — so we apply its deterministic operations but HOLD the recorded
+    version at that migration's 'from' and stop. Advancing past it here would
+    make a half-finished update look complete: the next `bootstrap.sh update`
+    (and vault-migrate's own version check) would see vault == framework and
+    silently skip the pending LLM step forever.
+
+    Returns (safe_version, total_changed, llm_migrations).
+    """
+    total_changed = 0
+    llm_migrations: list[dict] = []
+    safe_version = vault_version  # highest version fully applied so far
+
+    for migration in pending:
+        print(f"Applying {migration['from']} → {migration['to']}: {migration['description']}")
+
+        if not migration.get("operations"):
+            print("  (no structural operations — version step only)")
+            append_migration_log(migration["from"], migration["to"], 0, dry_run)
         else:
-            i += 1
+            stats = apply_migration(migration, wiki_files, dry_run)
+            append_migration_log(migration["from"], migration["to"], stats["changed"], dry_run)
+            total_changed += stats["changed"]
+            print(f"  changed: {stats['changed']}  skipped: {stats['skipped']}  errors: {stats['errors']}")
+
+        if migration.get("requires_llm"):
+            llm_migrations.append(migration)
+            # Hold here — later migrations depend on this one finishing first.
+            break
+
+        safe_version = migration["to"]
+
+    return safe_version, total_changed, llm_migrations
+
+
+def main():
+    args = _parse_args()
+    dry_run = args.dry_run
+    complete = args.complete
+    scope_path = args.scope_path
+    from_version_override = args.from_version
 
     if dry_run:
         print("[ DRY RUN — no files will be written ]\n")
@@ -439,39 +495,11 @@ def main():
 
     print()
 
-    # Apply each migration.
-    #
-    # The recorded vault version only advances past a migration this script can
-    # FULLY apply on its own. A requires_llm migration has a manual semantic step
-    # (handled afterwards by the vault-migrate skill) that migrate.py cannot
-    # perform — so we apply its deterministic operations but HOLD the recorded
-    # version at that migration's 'from' and stop. Advancing past it here would
-    # make a half-finished update look complete: the next `bootstrap.sh update`
-    # (and vault-migrate's own version check) would see vault == framework and
-    # silently skip the pending LLM step forever. vault-migrate advances the
-    # version with `migrate.py --complete` once the manual step is done.
-    total_changed = 0
-    llm_migrations = []
-    safe_version = vault_version  # highest version fully applied so far
-
-    for migration in pending:
-        print(f"Applying {migration['from']} → {migration['to']}: {migration['description']}")
-
-        if not migration.get("operations"):
-            print("  (no structural operations — version step only)")
-            append_migration_log(migration["from"], migration["to"], 0, dry_run)
-        else:
-            stats = apply_migration(migration, wiki_files, dry_run)
-            append_migration_log(migration["from"], migration["to"], stats["changed"], dry_run)
-            total_changed += stats["changed"]
-            print(f"  changed: {stats['changed']}  skipped: {stats['skipped']}  errors: {stats['errors']}")
-
-        if migration.get("requires_llm"):
-            llm_migrations.append(migration)
-            # Hold here — later migrations depend on this one finishing first.
-            break
-
-        safe_version = migration["to"]
+    # vault-migrate advances the version with `migrate.py --complete` once any
+    # manual step is done (see _apply_pending for the version-holdback rationale).
+    safe_version, total_changed, llm_migrations = _apply_pending(
+        pending, wiki_files, vault_version, dry_run
+    )
 
     last_to_version = safe_version
     if llm_migrations:
