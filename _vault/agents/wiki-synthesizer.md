@@ -1,7 +1,7 @@
 ---
 name: wiki-synthesizer
 description: Synthesize concept articles across the WHOLE wiki graph and rebuild the index. Spawned once (serial) by vault-pipeline after all ingestion completes. Owns interlinking, so it needs full-graph context and cannot be parallelised.
-tools: Read, Write, Edit, Bash, Glob, Grep, Skill
+tools: Read, Write, Edit, Bash, Glob, Grep, Skill, WebSearch
 model: opus
 ---
 
