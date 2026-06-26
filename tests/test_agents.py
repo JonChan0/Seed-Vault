@@ -177,7 +177,7 @@ def _extract_agent_block() -> str:
     """
     lines = INSTALL_SH.read_text(encoding="utf-8").splitlines()
     start = next(i for i, ln in enumerate(lines) if ln.strip().startswith("AGENTS_SRC_DIR="))
-    end = next(i for i, ln in enumerate(lines) if i > start and ln == "fi")
+    end = next(i for i, ln in enumerate(lines) if i > start and re.match(r"^fi\s*$", ln))
     return "\n".join(lines[start : end + 1])
 
 
