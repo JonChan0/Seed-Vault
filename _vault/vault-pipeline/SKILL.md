@@ -48,9 +48,7 @@ spawns into a single message** so they run in parallel. Each agent receives one
 ```
 Agent(subagent_type="source-ingestor",
       description="Ingest <filename>",
-      prompt="Ingest exactly this one raw source: raw/<filename>. "
-             "Convert first if non-markdown. Return summary_path and "
-             "concepts_needing_article.")
+      prompt="Ingest exactly this one raw source: raw/<filename>. Convert first if non-markdown. Return summary_path and concepts_needing_article.")
 ```
 
 Collect each agent's hand-back. On a single ingest failure, log it and continue —
