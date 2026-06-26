@@ -68,10 +68,8 @@ def _normalize_title(title_or_path) -> str:
 # Core statistics builder
 # ---------------------------------------------------------------------------
 
-def build_stats() -> dict:
-    files = _collect_wiki_files()
-
-    # --- Article metadata ---------------------------------------------------
+def _collect_articles(files: list[Path]) -> list[dict]:
+    """Parse each wiki file's frontmatter into a normalized article record."""
     articles: list[dict] = []
     for p in files:
         fm = parse_file(p)
@@ -87,29 +85,11 @@ def build_stats() -> dict:
                 "created": parse_date(fm.get("created")),
             }
         )
+    return articles
 
-    total = len(articles)
 
-    # --- Type counts --------------------------------------------------------
-    type_counts: Counter = Counter(a["type"] for a in articles)
-
-    # --- Status counts ------------------------------------------------------
-    status_counts: Counter = Counter(a["status"] for a in articles)
-
-    # --- Recently updated (top 10) -----------------------------------------
-    recently_updated = sorted(
-        [a for a in articles if a["updated"]],
-        key=lambda a: a["updated"],
-        reverse=True,
-    )[:10]
-
-    # --- Tag frequency ------------------------------------------------------
-    tag_counter: Counter = Counter()
-    for a in articles:
-        for tag in a["tags"]:
-            tag_counter[tag.strip()] += 1
-
-    # --- Wikilink analysis --------------------------------------------------
+def _link_graph(files: list[Path], articles: list[dict]) -> dict:
+    """Analyze the wikilink graph: hub nodes, orphans, and unresolved targets."""
     # Map every identity alias (frontmatter title slug AND filename-stem slug)
     # to the article's canonical title. A link target may use either form —
     # notably the mandated aliased link [[stem|Title]] resolves on the stem —
@@ -123,7 +103,6 @@ def build_stats() -> dict:
     # resolve to no known article for the unresolved-links report.
     incoming: Counter = Counter()
     all_link_targets: list[str] = []
-
     for p in files:
         try:
             text = p.read_text(encoding="utf-8")
@@ -141,41 +120,63 @@ def build_stats() -> dict:
         (title, count) for title, count in incoming.most_common() if count > 0
     ][:5]
 
-    # Orphans: articles with 0 incoming links.
-    orphans = [a["title"] for a in articles if incoming.get(a["title"], 0) == 0]
-
     # Unresolved links: targets matching no known article alias. raw/ links
     # point at raw source files (not wiki articles) and are intentional.
-    unresolved: set[str] = {
+    unresolved = {
         t
         for t in all_link_targets
         if not t.startswith("raw/") and normalize_key(t) not in alias_to_title
     }
 
-    # --- Knowledge gaps -----------------------------------------------------
-    # Raw files without a corresponding source summary
+    return {
+        "hub_nodes": [{"title": t, "incoming": c} for t, c in hub_candidates],
+        "orphans": [a["title"] for a in articles if incoming.get(a["title"], 0) == 0],
+        "unresolved_links": sorted(unresolved),
+    }
+
+
+def _knowledge_gaps(files: list[Path], tag_counter: Counter) -> dict:
+    """Count raw files lacking a source summary and tags used only once."""
     raw_files: list[Path] = []
     if RAW_DIR.exists():
         raw_files = list(RAW_DIR.glob("*.md")) + list(RAW_DIR.glob("*.txt"))
 
-    source_stems = {
-        p.stem.lower()
-        for p in files
-        if "sources" in str(p)
+    source_stems = {p.stem.lower() for p in files if "sources" in str(p)}
+    # Heuristic: a raw file is covered if any source summary filename contains its stem.
+    raw_without_summary = sum(
+        1 for rf in raw_files
+        if not any(rf.stem.lower() in s for s in source_stems)
+    )
+
+    return {
+        "raw_without_summary": raw_without_summary,
+        "singleton_tags": sum(1 for c in tag_counter.values() if c == 1),
     }
 
-    raw_without_summary = 0
-    for rf in raw_files:
-        # Heuristic: check if any source summary filename contains the raw stem
-        raw_stem = rf.stem.lower()
-        if not any(raw_stem in s for s in source_stems):
-            raw_without_summary += 1
 
-    singleton_tags = sum(1 for c in tag_counter.values() if c == 1)
+def build_stats() -> dict:
+    files = _collect_wiki_files()
+    articles = _collect_articles(files)
+
+    type_counts: Counter = Counter(a["type"] for a in articles)
+    status_counts: Counter = Counter(a["status"] for a in articles)
+
+    recently_updated = sorted(
+        [a for a in articles if a["updated"]],
+        key=lambda a: a["updated"],
+        reverse=True,
+    )[:10]
+
+    tag_counter: Counter = Counter()
+    for a in articles:
+        for tag in a["tags"]:
+            tag_counter[tag.strip()] += 1
+
+    graph = _link_graph(files, articles)
 
     return {
         "generated": date.today().isoformat(),
-        "total": total,
+        "total": len(articles),
         "type_counts": dict(type_counts),
         "status_counts": dict(status_counts),
         "recently_updated": [
@@ -186,14 +187,11 @@ def build_stats() -> dict:
             }
             for a in recently_updated
         ],
-        "hub_nodes": [{"title": t, "incoming": c} for t, c in hub_candidates],
-        "orphans": orphans,
-        "unresolved_links": sorted(unresolved),
+        "hub_nodes": graph["hub_nodes"],
+        "orphans": graph["orphans"],
+        "unresolved_links": graph["unresolved_links"],
         "tag_distribution": tag_counter.most_common(),
-        "gaps": {
-            "raw_without_summary": raw_without_summary,
-            "singleton_tags": singleton_tags,
-        },
+        "gaps": _knowledge_gaps(files, tag_counter),
     }
 
 

@@ -19,7 +19,6 @@ Depends on:
 """
 
 import re
-import shutil
 import sys
 import tempfile
 from datetime import date
@@ -57,6 +56,12 @@ def _frontmatter(title: str, original_format: str, ingested: str) -> str:
         f"ingested: {ingested}\n"
         "---\n\n"
     )
+
+
+def _emit(output_path: Path, title: str, fmt: str, body: str, ingested: str) -> Path:
+    """Write frontmatter + body to *output_path* and return it."""
+    output_path.write_text(_frontmatter(title, fmt, ingested) + body, encoding="utf-8")
+    return output_path
 
 
 def _try_opendataloader_pdf(input_path: Path) -> str | None:
@@ -137,25 +142,16 @@ def convert_file(input_path: str | Path, output_dir: str | Path) -> Path:
     # ------------------------------------------------------------------
     if suffix in {".md", ".txt"}:
         body = input_path.read_text(encoding="utf-8", errors="replace")
-        fm = _frontmatter(title, suffix.lstrip("."), today)
-        output_path.write_text(fm + body, encoding="utf-8")
-        return output_path
+        return _emit(output_path, title, suffix.lstrip("."), body, today)
 
     # ------------------------------------------------------------------
     # PDF: opendataloader-pdf first, then pypandoc fallback
     # ------------------------------------------------------------------
     if suffix == ".pdf":
         body = _try_opendataloader_pdf(input_path)
-        if body is not None:
-            fm = _frontmatter(title, "pdf", today)
-            output_path.write_text(fm + body, encoding="utf-8")
-            return output_path
-
-        # Fall back to pypandoc
-        _body = _convert_via_pandoc(input_path, "pdf")
-        fm = _frontmatter(title, "pdf", today)
-        output_path.write_text(fm + _body, encoding="utf-8")
-        return output_path
+        if body is None:
+            body = _convert_via_pandoc(input_path, "pdf")
+        return _emit(output_path, title, "pdf", body, today)
 
     # ------------------------------------------------------------------
     # Other binary formats: pypandoc
@@ -176,9 +172,7 @@ def convert_file(input_path: str | Path, output_dir: str | Path) -> Path:
 
     pandoc_fmt = format_map[suffix]
     body = _convert_via_pandoc(input_path, pandoc_fmt)
-    fm = _frontmatter(title, pandoc_fmt, today)
-    output_path.write_text(fm + body, encoding="utf-8")
-    return output_path
+    return _emit(output_path, title, pandoc_fmt, body, today)
 
 
 def _convert_via_pandoc(input_path: Path, pandoc_fmt: str) -> str:
@@ -191,13 +185,10 @@ def _convert_via_pandoc(input_path: Path, pandoc_fmt: str) -> str:
     """
     try:
         import pypandoc  # noqa: PLC0415
-    except ImportError:
-        print(
-            "Error: pypandoc is not installed. "
-            "Install it with:  pip install pypandoc",
-            file=sys.stderr,
-        )
-        sys.exit(1)
+    except ImportError as exc:
+        raise RuntimeError(
+            "pypandoc is not installed. Install it with:  pip install pypandoc"
+        ) from exc
 
     try:
         return pypandoc.convert_file(
