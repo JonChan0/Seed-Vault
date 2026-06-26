@@ -83,9 +83,7 @@ context-isolated — they return reports, they do not edit.
 ```
 Agent(subagent_type="clean-room-verifier",
       description="Verify <article>",
-      prompt="Fact-check this one article with no prior context: "
-             "wiki/concepts/<stem>.md. Run verify.py, follow vault-verify, "
-             "return per-claim status, confidence, and recommended_fixes.")
+      prompt="Fact-check this one article with no prior context: wiki/concepts/<stem>.md. Run verify.py, follow vault-verify, return per-claim status, confidence, and recommended_fixes.")
 ```
 
 ---
