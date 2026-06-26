@@ -13,10 +13,9 @@ from __future__ import annotations
 
 import argparse
 import json
-import re
 import sys
 from collections import Counter
-from datetime import date, datetime
+from datetime import date
 from pathlib import Path
 
 # ---------------------------------------------------------------------------
@@ -26,44 +25,28 @@ VAULT_ROOT = Path(__file__).resolve().parent.parent.parent
 WIKI_DIR = VAULT_ROOT / "wiki"
 RAW_DIR = VAULT_ROOT / "raw"
 
-# Files to exclude from article counts
-_EXCLUDED_NAMES = {"_index.md", "_log.md", "_migration-log.md"}
-_EXCLUDED_SUFFIXES = {".base"}
-
-# Regex for [[wikilinks]] — captures the target (before | or #)
-_WIKILINK_RE = re.compile(r"\[\[([^\]|#\n]+?)(?:[|#][^\]]*?)?\]\]")
-
 # ---------------------------------------------------------------------------
-# Frontmatter import — share the project helper
+# Shared helpers — single source of truth in vault_frontmatter
 # ---------------------------------------------------------------------------
 sys.path.append(str(VAULT_ROOT))
 
-from _vault.lib.vault_frontmatter import parse_file  # noqa: E402
+from _vault.lib.vault_frontmatter import (  # noqa: E402
+    extract_wikilinks,
+    is_meta_file,
+    normalize_key,
+    parse_date,
+    parse_file,
+)
 
 
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
 
-def _is_excluded(path: Path) -> bool:
-    return path.name in _EXCLUDED_NAMES or path.suffix in _EXCLUDED_SUFFIXES
-
-
 def _collect_wiki_files() -> list[Path]:
     if not WIKI_DIR.exists():
         return []
-    return [p for p in WIKI_DIR.rglob("*.md") if not _is_excluded(p)]
-
-
-def _parse_date(value) -> date | None:
-    if not value:
-        return None
-    if isinstance(value, (date, datetime)):
-        return value.date() if isinstance(value, datetime) else value
-    try:
-        return date.fromisoformat(str(value).strip())
-    except ValueError:
-        return None
+    return [p for p in WIKI_DIR.rglob("*.md") if not is_meta_file(p)]
 
 
 def _normalize_title(title_or_path) -> str:
@@ -79,19 +62,6 @@ def _normalize_title(title_or_path) -> str:
     # Derive from filename: kebab-case → Title Case
     stem = path.stem
     return stem.replace("-", " ").replace("_", " ").title()
-
-
-def _slug(title: str) -> str:
-    """Normalized lookup key for link/title matching.
-
-    Lowercases and collapses hyphens, underscores, and whitespace to single
-    spaces, so an aliased wikilink target like ``dummy-human-genome`` and the
-    article title ``Dummy Human Genome`` map to the same key. Without this,
-    the mandated ``[[stem|Title]]`` link form would never register as an
-    incoming link, making every article look like an orphan.
-    """
-    s = title.strip().lower().replace("-", " ").replace("_", " ")
-    return re.sub(r"\s+", " ", s).strip()
 
 
 # ---------------------------------------------------------------------------
@@ -113,8 +83,8 @@ def build_stats() -> dict:
                 "type": str(fm.get("type", "unknown")).strip(),
                 "status": str(fm.get("status", "unknown")).strip(),
                 "tags": _coerce_list(fm.get("tags")),
-                "updated": _parse_date(fm.get("updated")),
-                "created": _parse_date(fm.get("created")),
+                "updated": parse_date(fm.get("updated")),
+                "created": parse_date(fm.get("created")),
             }
         )
 
@@ -146,7 +116,7 @@ def build_stats() -> dict:
     # so both must point at the same article or links won't register.
     alias_to_title: dict[str, str] = {}
     for a in articles:
-        for alias in (_slug(a["title"]), _slug(a["path"].stem)):
+        for alias in (normalize_key(a["title"]), normalize_key(a["path"].stem)):
             alias_to_title.setdefault(alias, a["title"])
 
     # Count incoming links per canonical article title; collect targets that
@@ -159,10 +129,10 @@ def build_stats() -> dict:
             text = p.read_text(encoding="utf-8")
         except (OSError, UnicodeDecodeError):
             continue
-        for t in _WIKILINK_RE.findall(text):
+        for t in extract_wikilinks(text):
             t_clean = t.strip()
             all_link_targets.append(t_clean)
-            canonical = alias_to_title.get(_slug(t_clean))
+            canonical = alias_to_title.get(normalize_key(t_clean))
             if canonical is not None:
                 incoming[canonical] += 1
 
@@ -179,7 +149,7 @@ def build_stats() -> dict:
     unresolved: set[str] = {
         t
         for t in all_link_targets
-        if not t.startswith("raw/") and _slug(t) not in alias_to_title
+        if not t.startswith("raw/") and normalize_key(t) not in alias_to_title
     }
 
     # --- Knowledge gaps -----------------------------------------------------

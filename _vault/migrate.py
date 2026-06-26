@@ -38,6 +38,16 @@ VAULT_VERSION_FILE = VAULT_ROOT / ".vault_version"                  # install-st
 LEGACY_VAULT_VERSION_FILE = VAULT_ROOT / "wiki" / ".vault_version"  # pre-3.x location
 MIGRATION_LOG = VAULT_ROOT / "wiki" / "_migration-log.md"
 
+# Meta/system files excluded from migration. Kept local (not imported from
+# _vault.lib) so migrate.py stays a dependency-free standalone script — the
+# bootstrap update flow runs it before _vault.lib is reliably importable.
+EXCLUDED_NAMES = {"_index.md", "_log.md", "_migration-log.md", "_catalog.md"}
+EXCLUDED_SUFFIXES = {".base"}
+
+
+def _is_meta_file(path: Path) -> bool:
+    return path.name in EXCLUDED_NAMES or path.suffix in EXCLUDED_SUFFIXES
+
 
 # ── Semver helpers ────────────────────────────────────────────────────────────
 
@@ -223,14 +233,7 @@ def find_wiki_files(scope_path: str | None = None) -> list[Path]:
     Excludes system files: _index.md, _catalog.md, _migration-log.md, *.base
     """
     base = VAULT_ROOT / scope_path if scope_path else VAULT_ROOT / "wiki"
-    exclude = {"_index.md", "_catalog.md", "_migration-log.md", "_log.md"}
-
-    files = []
-    for p in sorted(Path(base).rglob("*.md")):
-        if p.name in exclude or p.suffix == ".base":
-            continue
-        files.append(p)
-    return files
+    return [p for p in sorted(Path(base).rglob("*.md")) if not _is_meta_file(p)]
 
 
 # ── Vault version detection ───────────────────────────────────────────────────

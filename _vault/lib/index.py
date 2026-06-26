@@ -34,10 +34,6 @@ SOURCES_DIR = WIKI_DIR / "sources"
 CONCEPTS_DIR = WIKI_DIR / "concepts"
 LOG_FILE = WIKI_DIR / "_log.md"
 
-# Files to exclude from scanning
-EXCLUDED_NAMES = {"_index.md", "_log.md", "_migration-log.md", "_catalog.md"}
-EXCLUDED_SUFFIXES = {".base"}
-
 # ---------------------------------------------------------------------------
 # Frontmatter helpers
 # ---------------------------------------------------------------------------
@@ -48,6 +44,8 @@ import frontmatter as _frontmatter_lib  # noqa: E402
 sys.path.append(str(VAULT_ROOT))
 
 from _vault.lib.vault_frontmatter import (  # noqa: E402
+    extract_wikilinks,
+    is_meta_file,
     parse_file,
     scan_directory,
     slugify,
@@ -59,8 +57,8 @@ from _vault.lib.vault_frontmatter import (  # noqa: E402
 # ---------------------------------------------------------------------------
 
 def is_excluded(path: Path) -> bool:
-    """Return True if this file should be skipped."""
-    return path.name in EXCLUDED_NAMES or path.suffix in EXCLUDED_SUFFIXES
+    """Return True if this file should be skipped (meta/index/log/.base)."""
+    return is_meta_file(path)
 
 
 def tags_str(tags) -> str:
@@ -324,7 +322,7 @@ def _get_body_wikilinks(path: Path) -> list[str]:
         return []
     fm_match = re.match(r"^---\s*\n.*?\n---\s*\n", text, re.DOTALL)
     body = text[fm_match.end():] if fm_match else text
-    return re.findall(r"\[\[([^\]#|]+)", body)
+    return extract_wikilinks(body)
 
 
 def _find_concepts_referencing_source(source_title: str) -> list[Path]:
