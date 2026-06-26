@@ -67,10 +67,7 @@ whole-graph interlinking, so never run two in parallel.
 ```
 Agent(subagent_type="wiki-synthesizer",
       description="Synthesize new concepts",
-      prompt="Source summaries just ingested: <list>. Concepts flagged needing "
-             "articles: <aggregated list>. Compile genuinely-new concept "
-             "articles with bidirectional links, then rebuild the index "
-             "(--no-cleanup). Return articles_created / articles_updated.")
+      prompt="Source summaries just ingested: <list>. Concepts flagged needing articles: <aggregated list>. Compile genuinely-new concept articles with bidirectional links, then rebuild the index (--no-cleanup). Return articles_created / articles_updated.")
 ```
 
 Capture `articles_created`.
