@@ -34,10 +34,6 @@ SOURCES_DIR = WIKI_DIR / "sources"
 CONCEPTS_DIR = WIKI_DIR / "concepts"
 LOG_FILE = WIKI_DIR / "_log.md"
 
-# Files to exclude from scanning
-EXCLUDED_NAMES = {"_index.md", "_log.md", "_migration-log.md", "_catalog.md"}
-EXCLUDED_SUFFIXES = {".base"}
-
 # ---------------------------------------------------------------------------
 # Frontmatter helpers
 # ---------------------------------------------------------------------------
@@ -48,6 +44,8 @@ import frontmatter as _frontmatter_lib  # noqa: E402
 sys.path.append(str(VAULT_ROOT))
 
 from _vault.lib.vault_frontmatter import (  # noqa: E402
+    extract_wikilinks,
+    is_meta_file,
     parse_file,
     scan_directory,
     slugify,
@@ -59,8 +57,8 @@ from _vault.lib.vault_frontmatter import (  # noqa: E402
 # ---------------------------------------------------------------------------
 
 def is_excluded(path: Path) -> bool:
-    """Return True if this file should be skipped."""
-    return path.name in EXCLUDED_NAMES or path.suffix in EXCLUDED_SUFFIXES
+    """Return True if this file should be skipped (meta/index/log/.base)."""
+    return is_meta_file(path)
 
 
 def tags_str(tags) -> str:
@@ -324,7 +322,7 @@ def _get_body_wikilinks(path: Path) -> list[str]:
         return []
     fm_match = re.match(r"^---\s*\n.*?\n---\s*\n", text, re.DOTALL)
     body = text[fm_match.end():] if fm_match else text
-    return re.findall(r"\[\[([^\]#|]+)", body)
+    return extract_wikilinks(body)
 
 
 def _find_concepts_referencing_source(source_title: str) -> list[Path]:
@@ -447,33 +445,14 @@ def cleanup_orphaned_sources(dry_run: bool = False) -> dict:
     """
     orphaned_summaries = find_orphaned_summaries()
     if not orphaned_summaries:
-        return {
-            "orphaned_summaries": [],
-            "deleted": [],
-            "modified": [],
-        }
+        return {"orphaned_summaries": [], "deleted": [], "modified": []}
 
-    orphan_titles: set[str] = {_get_title(p) for p in orphaned_summaries}
+    concepts_to_delete, concepts_to_modify = _plan_orphan_cleanup(orphaned_summaries)
+    rel_orphans = [str(p.relative_to(VAULT_ROOT)) for p in orphaned_summaries]
 
-    # --- Pass 1: decide which concepts to delete vs modify ---
-    concepts_to_delete: set[Path] = set()
-    # concept path → list of source titles to strip
-    concepts_to_modify: dict[Path, list[str]] = defaultdict(list)
-
-    for summary_path in orphaned_summaries:
-        summary_title = _get_title(summary_path)
-        for concept_path in _find_concepts_referencing_source(summary_title):
-            all_sources = _get_sources_list(concept_path)
-            remaining = [s for s in all_sources if s not in orphan_titles]
-            if not remaining:
-                concepts_to_delete.add(concept_path)
-            else:
-                concepts_to_modify[concept_path].append(summary_title)
-
-    # --- Dry-run: return preview without touching files ---
     if dry_run:
         return {
-            "orphaned_summaries": [str(p.relative_to(VAULT_ROOT)) for p in orphaned_summaries],
+            "orphaned_summaries": rel_orphans,
             "deleted": [],
             "modified": [],
             "would_delete": sorted(
@@ -481,15 +460,50 @@ def cleanup_orphaned_sources(dry_run: bool = False) -> dict:
                 for p in list(orphaned_summaries) + list(concepts_to_delete)
             ),
             "would_modify": sorted(
-                str(p.relative_to(VAULT_ROOT))
-                for p in concepts_to_modify.keys()
+                str(p.relative_to(VAULT_ROOT)) for p in concepts_to_modify
             ),
         }
 
+    deleted, modified = _apply_orphan_cleanup(
+        orphaned_summaries, concepts_to_delete, concepts_to_modify
+    )
+    return {"orphaned_summaries": rel_orphans, "deleted": deleted, "modified": modified}
+
+
+def _plan_orphan_cleanup(
+    orphaned_summaries: list[Path],
+) -> tuple[set[Path], dict[Path, list[str]]]:
+    """Decide, per referencing concept, whether to delete it or just strip the
+    orphaned source refs. A concept is deleted only when *all* its sources are
+    orphaned; otherwise it is marked for modification."""
+    orphan_titles: set[str] = {_get_title(p) for p in orphaned_summaries}
+    concepts_to_delete: set[Path] = set()
+    concepts_to_modify: dict[Path, list[str]] = defaultdict(list)
+
+    for summary_path in orphaned_summaries:
+        summary_title = _get_title(summary_path)
+        for concept_path in _find_concepts_referencing_source(summary_title):
+            remaining = [
+                s for s in _get_sources_list(concept_path) if s not in orphan_titles
+            ]
+            if not remaining:
+                concepts_to_delete.add(concept_path)
+            else:
+                concepts_to_modify[concept_path].append(summary_title)
+
+    return concepts_to_delete, concepts_to_modify
+
+
+def _apply_orphan_cleanup(
+    orphaned_summaries: list[Path],
+    concepts_to_delete: set[Path],
+    concepts_to_modify: dict[Path, list[str]],
+) -> tuple[list[str], list[str]]:
+    """Strip refs from surviving concepts, delete emptied concepts, then delete
+    the orphaned summaries. Logs each action. Returns (deleted, modified)."""
     deleted: list[str] = []
     modified: list[str] = []
 
-    # --- Modify concepts (strip orphaned source references) ---
     for concept_path, source_titles in concepts_to_modify.items():
         if concept_path in concepts_to_delete:
             continue
@@ -500,25 +514,19 @@ def cleanup_orphaned_sources(dry_run: bool = False) -> dict:
         modified.append(rel)
         _append_cleanup_log(f"Removed source ref(s) {source_titles} from {rel}")
 
-    # --- Delete concepts ---
     for concept_path in concepts_to_delete:
         rel = str(concept_path.relative_to(VAULT_ROOT))
         concept_path.unlink()
         deleted.append(rel)
         _append_cleanup_log(f"Deleted concept {rel} (only source was orphaned)")
 
-    # --- Delete orphaned source summaries ---
     for summary_path in orphaned_summaries:
         rel = str(summary_path.relative_to(VAULT_ROOT))
         summary_path.unlink()
         deleted.append(rel)
         _append_cleanup_log(f"Deleted orphaned summary {rel} (raw file removed)")
 
-    return {
-        "orphaned_summaries": [str(p.relative_to(VAULT_ROOT)) for p in orphaned_summaries],
-        "deleted": deleted,
-        "modified": modified,
-    }
+    return deleted, modified
 
 
 def _print_path_section(label: str, paths: list[str]) -> None:

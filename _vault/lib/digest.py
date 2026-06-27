@@ -13,10 +13,9 @@ from __future__ import annotations
 
 import argparse
 import json
-import re
 import sys
 from collections import Counter
-from datetime import date, datetime
+from datetime import date
 from pathlib import Path
 
 # ---------------------------------------------------------------------------
@@ -26,44 +25,28 @@ VAULT_ROOT = Path(__file__).resolve().parent.parent.parent
 WIKI_DIR = VAULT_ROOT / "wiki"
 RAW_DIR = VAULT_ROOT / "raw"
 
-# Files to exclude from article counts
-_EXCLUDED_NAMES = {"_index.md", "_log.md", "_migration-log.md"}
-_EXCLUDED_SUFFIXES = {".base"}
-
-# Regex for [[wikilinks]] — captures the target (before | or #)
-_WIKILINK_RE = re.compile(r"\[\[([^\]|#\n]+?)(?:[|#][^\]]*?)?\]\]")
-
 # ---------------------------------------------------------------------------
-# Frontmatter import — share the project helper
+# Shared helpers — single source of truth in vault_frontmatter
 # ---------------------------------------------------------------------------
 sys.path.append(str(VAULT_ROOT))
 
-from _vault.lib.vault_frontmatter import parse_file  # noqa: E402
+from _vault.lib.vault_frontmatter import (  # noqa: E402
+    extract_wikilinks,
+    is_meta_file,
+    normalize_key,
+    parse_date,
+    parse_file,
+)
 
 
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
 
-def _is_excluded(path: Path) -> bool:
-    return path.name in _EXCLUDED_NAMES or path.suffix in _EXCLUDED_SUFFIXES
-
-
 def _collect_wiki_files() -> list[Path]:
     if not WIKI_DIR.exists():
         return []
-    return [p for p in WIKI_DIR.rglob("*.md") if not _is_excluded(p)]
-
-
-def _parse_date(value) -> date | None:
-    if not value:
-        return None
-    if isinstance(value, (date, datetime)):
-        return value.date() if isinstance(value, datetime) else value
-    try:
-        return date.fromisoformat(str(value).strip())
-    except ValueError:
-        return None
+    return [p for p in WIKI_DIR.rglob("*.md") if not is_meta_file(p)]
 
 
 def _normalize_title(title_or_path) -> str:
@@ -81,27 +64,12 @@ def _normalize_title(title_or_path) -> str:
     return stem.replace("-", " ").replace("_", " ").title()
 
 
-def _slug(title: str) -> str:
-    """Normalized lookup key for link/title matching.
-
-    Lowercases and collapses hyphens, underscores, and whitespace to single
-    spaces, so an aliased wikilink target like ``dummy-human-genome`` and the
-    article title ``Dummy Human Genome`` map to the same key. Without this,
-    the mandated ``[[stem|Title]]`` link form would never register as an
-    incoming link, making every article look like an orphan.
-    """
-    s = title.strip().lower().replace("-", " ").replace("_", " ")
-    return re.sub(r"\s+", " ", s).strip()
-
-
 # ---------------------------------------------------------------------------
 # Core statistics builder
 # ---------------------------------------------------------------------------
 
-def build_stats() -> dict:
-    files = _collect_wiki_files()
-
-    # --- Article metadata ---------------------------------------------------
+def _collect_articles(files: list[Path]) -> list[dict]:
+    """Parse each wiki file's frontmatter into a normalized article record."""
     articles: list[dict] = []
     for p in files:
         fm = parse_file(p)
@@ -113,56 +81,37 @@ def build_stats() -> dict:
                 "type": str(fm.get("type", "unknown")).strip(),
                 "status": str(fm.get("status", "unknown")).strip(),
                 "tags": _coerce_list(fm.get("tags")),
-                "updated": _parse_date(fm.get("updated")),
-                "created": _parse_date(fm.get("created")),
+                "updated": parse_date(fm.get("updated")),
+                "created": parse_date(fm.get("created")),
             }
         )
+    return articles
 
-    total = len(articles)
 
-    # --- Type counts --------------------------------------------------------
-    type_counts: Counter = Counter(a["type"] for a in articles)
-
-    # --- Status counts ------------------------------------------------------
-    status_counts: Counter = Counter(a["status"] for a in articles)
-
-    # --- Recently updated (top 10) -----------------------------------------
-    recently_updated = sorted(
-        [a for a in articles if a["updated"]],
-        key=lambda a: a["updated"],
-        reverse=True,
-    )[:10]
-
-    # --- Tag frequency ------------------------------------------------------
-    tag_counter: Counter = Counter()
-    for a in articles:
-        for tag in a["tags"]:
-            tag_counter[tag.strip()] += 1
-
-    # --- Wikilink analysis --------------------------------------------------
+def _link_graph(files: list[Path], articles: list[dict]) -> dict:
+    """Analyze the wikilink graph: hub nodes, orphans, and unresolved targets."""
     # Map every identity alias (frontmatter title slug AND filename-stem slug)
     # to the article's canonical title. A link target may use either form —
     # notably the mandated aliased link [[stem|Title]] resolves on the stem —
     # so both must point at the same article or links won't register.
     alias_to_title: dict[str, str] = {}
     for a in articles:
-        for alias in (_slug(a["title"]), _slug(a["path"].stem)):
+        for alias in (normalize_key(a["title"]), normalize_key(a["path"].stem)):
             alias_to_title.setdefault(alias, a["title"])
 
     # Count incoming links per canonical article title; collect targets that
     # resolve to no known article for the unresolved-links report.
     incoming: Counter = Counter()
     all_link_targets: list[str] = []
-
     for p in files:
         try:
             text = p.read_text(encoding="utf-8")
         except (OSError, UnicodeDecodeError):
             continue
-        for t in _WIKILINK_RE.findall(text):
+        for t in extract_wikilinks(text):
             t_clean = t.strip()
             all_link_targets.append(t_clean)
-            canonical = alias_to_title.get(_slug(t_clean))
+            canonical = alias_to_title.get(normalize_key(t_clean))
             if canonical is not None:
                 incoming[canonical] += 1
 
@@ -171,41 +120,63 @@ def build_stats() -> dict:
         (title, count) for title, count in incoming.most_common() if count > 0
     ][:5]
 
-    # Orphans: articles with 0 incoming links.
-    orphans = [a["title"] for a in articles if incoming.get(a["title"], 0) == 0]
-
     # Unresolved links: targets matching no known article alias. raw/ links
     # point at raw source files (not wiki articles) and are intentional.
-    unresolved: set[str] = {
+    unresolved = {
         t
         for t in all_link_targets
-        if not t.startswith("raw/") and _slug(t) not in alias_to_title
+        if not t.startswith("raw/") and normalize_key(t) not in alias_to_title
     }
 
-    # --- Knowledge gaps -----------------------------------------------------
-    # Raw files without a corresponding source summary
+    return {
+        "hub_nodes": [{"title": t, "incoming": c} for t, c in hub_candidates],
+        "orphans": [a["title"] for a in articles if incoming.get(a["title"], 0) == 0],
+        "unresolved_links": sorted(unresolved),
+    }
+
+
+def _knowledge_gaps(files: list[Path], tag_counter: Counter) -> dict:
+    """Count raw files lacking a source summary and tags used only once."""
     raw_files: list[Path] = []
     if RAW_DIR.exists():
         raw_files = list(RAW_DIR.glob("*.md")) + list(RAW_DIR.glob("*.txt"))
 
-    source_stems = {
-        p.stem.lower()
-        for p in files
-        if "sources" in str(p)
+    source_stems = {p.stem.lower() for p in files if "sources" in str(p)}
+    # Heuristic: a raw file is covered if any source summary filename contains its stem.
+    raw_without_summary = sum(
+        1 for rf in raw_files
+        if not any(rf.stem.lower() in s for s in source_stems)
+    )
+
+    return {
+        "raw_without_summary": raw_without_summary,
+        "singleton_tags": sum(1 for c in tag_counter.values() if c == 1),
     }
 
-    raw_without_summary = 0
-    for rf in raw_files:
-        # Heuristic: check if any source summary filename contains the raw stem
-        raw_stem = rf.stem.lower()
-        if not any(raw_stem in s for s in source_stems):
-            raw_without_summary += 1
 
-    singleton_tags = sum(1 for c in tag_counter.values() if c == 1)
+def build_stats() -> dict:
+    files = _collect_wiki_files()
+    articles = _collect_articles(files)
+
+    type_counts: Counter = Counter(a["type"] for a in articles)
+    status_counts: Counter = Counter(a["status"] for a in articles)
+
+    recently_updated = sorted(
+        [a for a in articles if a["updated"]],
+        key=lambda a: a["updated"],
+        reverse=True,
+    )[:10]
+
+    tag_counter: Counter = Counter()
+    for a in articles:
+        for tag in a["tags"]:
+            tag_counter[tag.strip()] += 1
+
+    graph = _link_graph(files, articles)
 
     return {
         "generated": date.today().isoformat(),
-        "total": total,
+        "total": len(articles),
         "type_counts": dict(type_counts),
         "status_counts": dict(status_counts),
         "recently_updated": [
@@ -216,14 +187,11 @@ def build_stats() -> dict:
             }
             for a in recently_updated
         ],
-        "hub_nodes": [{"title": t, "incoming": c} for t, c in hub_candidates],
-        "orphans": orphans,
-        "unresolved_links": sorted(unresolved),
+        "hub_nodes": graph["hub_nodes"],
+        "orphans": graph["orphans"],
+        "unresolved_links": graph["unresolved_links"],
         "tag_distribution": tag_counter.most_common(),
-        "gaps": {
-            "raw_without_summary": raw_without_summary,
-            "singleton_tags": singleton_tags,
-        },
+        "gaps": _knowledge_gaps(files, tag_counter),
     }
 
 

@@ -7,14 +7,24 @@ Depends on: python-frontmatter
 
 import re
 import os
+from datetime import date, datetime
 from pathlib import Path
 from typing import Any
 
 import frontmatter
 
+# Meta/system files that are not content articles. Shared by every engine so a
+# new exclusion only has to be added once.
+EXCLUDED_NAMES = {"_index.md", "_log.md", "_migration-log.md", "_catalog.md"}
+EXCLUDED_SUFFIXES = {".base"}
+
+# Captures a [[wikilink]] target: the text before any "|" alias or "#" anchor.
+WIKILINK_RE = re.compile(r"\[\[([^\]\n#|]+)")
+
+
 def slugify(text: str) -> str:
     """Convert Title Case or spaces into kebab-case.
-    
+
     Example: "Uncontrolled Hypertension" -> "uncontrolled-hypertension"
     Example: "summary-lilly-ai-collab" -> "summary-lilly-ai-collab"
     """
@@ -24,6 +34,70 @@ def slugify(text: str) -> str:
     s = re.sub(r"[^a-zA-Z0-9]+", "-", s)
     # Strip leading/trailing dashes and lowercase
     return s.strip("-").lower()
+
+
+def normalize_key(text: str) -> str:
+    """Normalized lookup key for link/title matching.
+
+    Lowercases and collapses hyphens, underscores, and runs of whitespace to a
+    single space, so an aliased wikilink target like ``dummy-human-genome`` and
+    the article title ``Dummy Human Genome`` map to the same key. Distinct from
+    :func:`slugify` (which produces kebab-case) — do not conflate the two.
+    """
+    s = text.strip().lower().replace("-", " ").replace("_", " ")
+    return re.sub(r"\s+", " ", s).strip()
+
+
+def is_meta_file(path: Path) -> bool:
+    """Return True for index/log/catalog/.base files that are not articles."""
+    return path.name in EXCLUDED_NAMES or path.suffix in EXCLUDED_SUFFIXES
+
+
+def parse_date(value: Any) -> date | None:
+    """Parse a frontmatter date value into a ``date``.
+
+    Accepts ``datetime`` (→ ``.date()``), ``date``, or an ISO-8601 string.
+    Returns None for empty/unparseable values.
+    """
+    if not value:
+        return None
+    if isinstance(value, datetime):
+        return value.date()
+    if isinstance(value, date):
+        return value
+    try:
+        return date.fromisoformat(str(value).strip())
+    except ValueError:
+        return None
+
+
+def extract_wikilinks(text: str) -> list[str]:
+    """Return raw wikilink targets (text before any | or #) from markdown text.
+
+    Targets are returned unstripped, exactly as captured; callers that need a
+    clean key should ``.strip()`` or pass through :func:`normalize_key`.
+    """
+    return WIKILINK_RE.findall(text)
+
+
+def extract_frontmatter_links(fm: dict, field: str, prefix: str = "") -> list[str]:
+    """Extract wikilink targets from a frontmatter field (scalar or list).
+
+    If ``prefix`` is given, only links whose target starts with that prefix are
+    returned, with the prefix stripped (e.g. prefix='raw/' returns the stem
+    after 'raw/'). Targets are stripped of surrounding whitespace.
+    """
+    val = fm.get(field)
+    if not val:
+        return []
+    candidates = val if isinstance(val, list) else [val]
+    pattern = re.compile(r"\[\[" + re.escape(prefix) + r"([^\]\n#|]+)")
+    targets: list[str] = []
+    for cand in candidates:
+        m = pattern.search(str(cand))
+        if m:
+            targets.append(m.group(1).strip())
+    return targets
 
 
 def build_vault_map(wiki_dir: Path) -> dict[str, Path]:
