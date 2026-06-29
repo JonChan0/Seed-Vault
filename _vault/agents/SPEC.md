@@ -18,7 +18,7 @@ vault-pipeline (meta-skill, main thread)
   ├─ deterministic assess  (pipeline.py)           — main thread
   ├─ N × source-ingestor   (parallel, Sonnet)      — one per raw file
   ├─ 1 × wiki-synthesizer  (serial, Opus)          — whole-graph context
-  ├─ N × clean-room-verifier (parallel, Opus)      — one per new article
+  ├─ N × clean-room-verifier (parallel, Haiku)     — one per new article
   └─ deterministic lint + digest + report          — main thread
 ```
 
@@ -66,7 +66,7 @@ _vault/agents/                 → Agent profile source (framework-owned, tracke
   SPEC.md                      → this spec
   source-ingestor.md           → Sonnet — per raw file (parallel)
   wiki-synthesizer.md          → Opus   — whole graph (serial)
-  clean-room-verifier.md       → Opus   — per article (parallel, read-only)
+  clean-room-verifier.md       → Haiku  — per article (parallel, read-only)
   visualizer.md                → Sonnet — per viz (standalone)
   qa-responder.md              → Haiku  — per query (standalone, read-only)
 .claude/agents/<name>.md       → generated symlinks (gitignored)
@@ -123,7 +123,7 @@ No unit-test framework for prose agents. Validation is structural + behavioural:
 |-------|-------|------------------|----------|
 | source-ingestor | sonnet | one raw file | yes (per file) |
 | wiki-synthesizer | opus | whole wiki graph | no (serial) |
-| clean-room-verifier | opus | one article + sources, clean | yes (per article) |
+| clean-room-verifier | haiku | one article + sources, clean | yes (per article) |
 | visualizer | sonnet | one concept's data | yes (per viz) |
 | qa-responder | haiku | one query + retrieved snippets | per query |
 
