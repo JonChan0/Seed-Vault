@@ -181,46 +181,138 @@ def check_orphan_pages() -> dict:
 # Check 3: Missing backlinks
 # ---------------------------------------------------------------------------
 
-def check_missing_backlinks() -> dict:
-    vault_map = _cached_vault_map()
+def _outgoing_map() -> dict[Path, set[Path]]:
+    """Map each content wiki file to the set of content files it links to.
 
-    # Content files only — _index.md mechanically links every article, so
-    # treating it as a link source would flag every article as "missing a
-    # backlink to the index" (same reasoning as check_orphan_pages).
+    Content files only — _index.md mechanically links every article, so
+    treating it as a link source would flag every article as "missing a
+    backlink to the index" (same reasoning as check_orphan_pages).
+    """
+    vault_map = _cached_vault_map()
     outgoing: dict[Path, set[Path]] = {}
     for f in _content_wiki_files():
-        text = _read_text(f)
-        body = _strip_frontmatter(text)
-        links = extract_wikilinks(body)
+        body = _strip_frontmatter(_read_text(f))
         targets: set[Path] = set()
-        for target in links:
+        for target in extract_wikilinks(body):
             resolved = resolve_link(target, vault_map)
             if resolved and resolved != f:
                 targets.add(resolved)
         outgoing[f] = targets
+    return outgoing
 
-    issues: list[str] = []
+
+def _missing_backlink_pairs() -> list[tuple[Path, Path]]:
+    """Return (a, b) pairs where a links b but b has no backlink to a.
+
+    The fix for each pair is to add a link to ``a`` into ``b``.
+    """
+    outgoing = _outgoing_map()
+    pairs: list[tuple[Path, Path]] = []
     checked: set[tuple[Path, Path]] = set()
-
     for a, targets in outgoing.items():
         for b in targets:
             if (a, b) in checked or (b, a) in checked:
                 continue
             checked.add((a, b))
-            b_targets = outgoing.get(b, set())
-            if a not in b_targets:
-                a_rel = a.relative_to(VAULT_ROOT)
-                b_rel = b.relative_to(VAULT_ROOT)
-                a_title = _cached_parse_file(a).get("title") or a.stem.replace("-", " ").title()
-                issues.append(
-                    f"{b_rel}: missing backlink to [[{a_title}]] (linked from {a_rel})"
-                )
+            if a not in outgoing.get(b, set()):
+                pairs.append((a, b))
+    return pairs
+
+
+def check_missing_backlinks() -> dict:
+    issues: list[str] = []
+    for a, b in _missing_backlink_pairs():
+        a_rel = a.relative_to(VAULT_ROOT)
+        b_rel = b.relative_to(VAULT_ROOT)
+        a_title = _cached_parse_file(a).get("title") or a.stem.replace("-", " ").title()
+        issues.append(
+            f"{b_rel}: missing backlink to [[{a_title}]] (linked from {a_rel})"
+        )
 
     return {
         "check": "missing_backlinks",
         "severity": "warning",
         "issues": issues,
-        "auto_fixable": False,
+        "auto_fixable": True,
+    }
+
+
+# ---------------------------------------------------------------------------
+# Auto-fix: insert reciprocal backlinks (deterministic — no LLM)
+# ---------------------------------------------------------------------------
+
+def _split_frontmatter(text: str) -> tuple[str, str]:
+    """Return (frontmatter_block_incl_delims, body). Empty fm if none."""
+    m = re.match(r"^(---\s*\n.*?\n---\s*\n)", text, re.DOTALL)
+    if m:
+        return m.group(1), text[m.end():]
+    return "", text
+
+
+def _bump_updated(frontmatter_block: str, today: str) -> str:
+    """Set the frontmatter `updated:` line to today, preserving everything else."""
+    if not frontmatter_block:
+        return frontmatter_block
+    new_block, _n = re.subn(
+        r"(?m)^updated:.*$", f"updated: {today}", frontmatter_block
+    )
+    return new_block
+
+
+def _insert_see_also_link(body: str, link: str) -> str:
+    """Add ``- {link}`` under a ``## See Also`` section, creating it if absent."""
+    bullet = f"- {link}"
+    heading = re.search(r"(?m)^##\s+See Also[ \t]*$", body)
+    if heading:
+        start = heading.end()
+        next_h2 = re.search(r"(?m)^##\s+", body[start:])
+        section_end = start + next_h2.start() if next_h2 else len(body)
+        section = body[start:section_end].rstrip("\n")
+        new_section = f"{section}\n{bullet}\n"
+        if next_h2:
+            new_section += "\n"
+        return body[:start] + new_section + body[section_end:]
+    return body.rstrip("\n") + f"\n\n## See Also\n\n{bullet}\n"
+
+
+def fix_missing_backlinks() -> dict:
+    """Insert each missing reciprocal backlink and bump the target's `updated:`.
+
+    Idempotent: a target already linking the source is skipped. Meta/index
+    files are never modified. Returns a report listing the edits made.
+    """
+    from datetime import date
+
+    today = date.today().isoformat()
+    fixed: list[str] = []
+
+    for a, b in _missing_backlink_pairs():
+        if is_meta_file(b):
+            continue
+        a_stem = a.stem
+        a_title = _cached_parse_file(a).get("title") or a_stem.replace("-", " ").title()
+        text = _read_text(b)
+        fm, body = _split_frontmatter(text)
+        # Idempotency: skip if the target already references the source stem.
+        if re.search(r"\[\[" + re.escape(a_stem) + r"[\]|#]", body):
+            continue
+        link = f"[[{a_stem}|{a_title}]]"
+        new_body = _insert_see_also_link(body, link)
+        new_fm = _bump_updated(fm, today)
+        b.write_text(new_fm + new_body, encoding="utf-8")
+        fixed.append(f"{b.relative_to(VAULT_ROOT)}: added {link}")
+
+    # Disk changed — invalidate cached reads so later checks see fresh content.
+    _read_text.cache_clear()
+    _cached_parse_file.cache_clear()
+    _all_wiki_files.cache_clear()
+    _cached_vault_map.cache_clear()
+
+    return {
+        "check": "missing_backlinks_fixed",
+        "severity": "info",
+        "fixed": fixed,
+        "auto_fixable": True,
     }
 
 
@@ -393,7 +485,27 @@ _SEVERITY_ORDER = ("error", "warning", "info")
 def main() -> int:
     parser = argparse.ArgumentParser(description="Seed Vault structural lint checker (no LLM).")
     parser.add_argument("--json", action="store_true", help="Output results as JSON.")
+    parser.add_argument(
+        "--fix-backlinks",
+        action="store_true",
+        dest="fix_backlinks",
+        help="Insert missing reciprocal backlinks (deterministic), then exit.",
+    )
     args = parser.parse_args()
+
+    if args.fix_backlinks:
+        report = fix_missing_backlinks()
+        if args.json:
+            print(json.dumps(report, indent=2))
+        else:
+            fixed = report["fixed"]
+            if fixed:
+                print(f"Fixed {len(fixed)} missing backlink(s):")
+                for line in fixed:
+                    print(f"  + {line}")
+            else:
+                print("No missing backlinks to fix.")
+        return 0
 
     results = run_all_checks()
 

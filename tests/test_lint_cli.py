@@ -58,14 +58,17 @@ def test_summary_line_always_present_even_when_clean(capsys):
     assert "0 info" in out
 
 
-def test_fix_backlinks_flag_removed():
-    """Flag implementation deleted; CLI should reject the option."""
-    try:
-        _run_main(["--fix-backlinks"], [])
-    except SystemExit as e:
-        assert e.code == 2
-        return
-    raise AssertionError("--fix-backlinks should have been removed")
+def test_fix_backlinks_flag_accepted():
+    """--fix-backlinks is a recognised option (re-added in the lean pipeline)."""
+    with (
+        patch.object(sys, "argv", ["lint.py", "--fix-backlinks"]),
+        patch.object(
+            lint,
+            "fix_missing_backlinks",
+            return_value={"check": "missing_backlinks_fixed", "fixed": [], "auto_fixable": True},
+        ),
+    ):
+        assert lint.main() == 0
 
 
 # ---------------------------------------------------------------------------
@@ -323,3 +326,101 @@ def test_index_sync_clears_after_rebuild(subprocess_vault):
     assert is_issues == [], (
         f"Expected no index_sync issues after index rebuild, got: {is_issues}"
     )
+
+
+# ---------------------------------------------------------------------------
+# Phase 2: Deterministic backlink insertion
+# ---------------------------------------------------------------------------
+
+from conftest import point_engine  # noqa: E402
+import datetime as _dt  # noqa: E402
+
+
+def _today() -> str:
+    return _dt.date.today().isoformat()
+
+
+def _concept_fm(title: str, updated: str = "2026-01-01") -> dict:
+    return {
+        "title": f'"{title}"',
+        "type": "concept",
+        "created": "2026-01-01",
+        "updated": updated,
+        "sources": [],
+        "tags": ["dummy/test"],
+        "status": "draft",
+        "llm_model": '"claude-opus-4-8"',
+        "framework_version": '"3.0.0"',
+    }
+
+
+def _make_one_way_pair(vault: Path, b_has_see_also: bool = True):
+    """A links B; B does NOT link A. Returns (a_path, b_path)."""
+    concepts = vault / "wiki" / "concepts"
+    a = write_article(
+        concepts / "alpha.md",
+        _concept_fm("Alpha"),
+        "# Alpha\n\nLinks to [[beta|Beta]] here.\n\n## See Also\n\n- [[beta|Beta]]\n",
+    )
+    b_body = "# Beta\n\nNo link back to alpha.\n"
+    if b_has_see_also:
+        b_body += "\n## See Also\n\n- [[gamma|Gamma]]\n"
+    b = write_article(concepts / "beta.md", _concept_fm("Beta"), b_body)
+    return a, b
+
+
+class TestBacklinkCheckAutoFixable:
+    def test_check_reports_auto_fixable_true(self, monkeypatch, empty_vault):
+        point_engine(monkeypatch, lint, empty_vault)
+        _make_one_way_pair(empty_vault)
+        res = lint.check_missing_backlinks()
+        assert res["auto_fixable"] is True
+        assert any("beta.md" in i for i in res["issues"])
+
+
+class TestFixMissingBacklinks:
+    def test_inserts_reciprocal_link(self, monkeypatch, empty_vault):
+        point_engine(monkeypatch, lint, empty_vault)
+        _a, b = _make_one_way_pair(empty_vault)
+        lint.fix_missing_backlinks()
+        body = b.read_text(encoding="utf-8")
+        assert "[[alpha|Alpha]]" in body
+
+    def test_idempotent(self, monkeypatch, empty_vault):
+        point_engine(monkeypatch, lint, empty_vault)
+        _a, b = _make_one_way_pair(empty_vault)
+        lint.fix_missing_backlinks()
+        lint.fix_missing_backlinks()
+        body = b.read_text(encoding="utf-8")
+        assert body.count("[[alpha|Alpha]]") == 1
+
+    def test_bumps_updated(self, monkeypatch, empty_vault):
+        point_engine(monkeypatch, lint, empty_vault)
+        _a, b = _make_one_way_pair(empty_vault)
+        lint.fix_missing_backlinks()
+        body = b.read_text(encoding="utf-8")
+        assert f"updated: {_today()}" in body
+
+    def test_creates_see_also_when_absent(self, monkeypatch, empty_vault):
+        point_engine(monkeypatch, lint, empty_vault)
+        _a, b = _make_one_way_pair(empty_vault, b_has_see_also=False)
+        lint.fix_missing_backlinks()
+        body = b.read_text(encoding="utf-8")
+        assert "## See Also" in body
+        assert "[[alpha|Alpha]]" in body
+
+    def test_resolves_after_fix(self, monkeypatch, empty_vault):
+        point_engine(monkeypatch, lint, empty_vault)
+        _make_one_way_pair(empty_vault)
+        lint.fix_missing_backlinks()
+        res = lint.check_missing_backlinks()
+        assert not any("beta.md" in i and "alpha" in i.lower() for i in res["issues"])
+
+
+class TestFixBacklinksCLI:
+    def test_cli_runs_and_reports(self, subprocess_vault):
+        # clean fixture is already bidirectional → fixer is a safe no-op,
+        # exits 0 and prints a summary line.
+        result = run_engine(subprocess_vault, "lint", "--fix-backlinks")
+        assert result.returncode == 0, result.stderr
+        assert "backlink" in result.stdout.lower()
