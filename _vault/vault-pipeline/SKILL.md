@@ -13,7 +13,7 @@ each call the relevant `vault-*` skill. Parallelise where context is disparate
     assess (deterministic)
        → N × source-ingestor   (parallel — one per raw file, Sonnet)
        → 1 × wiki-synthesizer   (serial — whole graph, Opus)
-       → N × clean-room-verifier (parallel — one per new article, Opus)
+       → N × clean-room-verifier (parallel — one per new article, Haiku)
        → apply fixes (orchestrator) + lint + digest (deterministic)
        → log + report
 

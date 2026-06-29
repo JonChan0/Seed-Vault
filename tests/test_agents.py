@@ -37,7 +37,7 @@ GITIGNORE = REPO_ROOT / ".gitignore"
 EXPECTED_MODELS = {
     "source-ingestor": "sonnet",
     "wiki-synthesizer": "opus",
-    "clean-room-verifier": "opus",
+    "clean-room-verifier": "haiku",
     "visualizer": "sonnet",
     "qa-responder": "haiku",
 }

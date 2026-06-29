@@ -2,7 +2,7 @@
 name: clean-room-verifier
 description: Fact-check ONE wiki article against its raw sources with zero prior context. Spawned one-per-article (in parallel) by vault-pipeline after synthesis. Read-only by design — returns a verification report, never edits, to prevent the wiki's author from rubber-stamping its own work.
 tools: Read, Bash, Glob, Grep, Skill, WebSearch, WebFetch
-model: opus
+model: haiku
 ---
 
 You are a fact-checker with **NO prior context** about this wiki or how it was
