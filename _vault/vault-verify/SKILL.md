@@ -18,6 +18,22 @@ You are verifying claims in Seed Vault wiki articles. This skill uses a **determ
 
 If verifying many articles, ask: "There are {{N}} articles to verify. This may take a while. Should I proceed?"
 
+### Optional: deterministic gate first (cheap triage)
+
+When verifying a batch, you can pre-filter with the deterministic gate to avoid
+spawning a clean-context subagent for articles whose claims already match their
+sources exactly:
+
+```bash
+uv run python _vault/lib/verify.py --gate <article ...> --json
+```
+
+It returns `{"verify": [...], "skip": [...]}`. Run the full Steps 3–6 LLM pass
+only on the `verify` list; mark the `skip` list `reviewed`. This is exactly what
+`vault-pipeline` does. **Caveat:** the gate only inspects *valued* claims and
+cannot detect contradictions or qualitative errors — if the user wants certainty
+(or said "force verify"), skip the gate and verify every article.
+
 ---
 
 ## Step 2: Run Deterministic Claim Extraction

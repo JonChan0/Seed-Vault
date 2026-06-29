@@ -1,7 +1,7 @@
 """
 lint.py — Structural lint checker for the Seed Vault wiki.
 
-Performs 7 deterministic checks with NO LLM involvement.
+Performs 8 deterministic checks with NO LLM involvement.
 """
 
 from __future__ import annotations
