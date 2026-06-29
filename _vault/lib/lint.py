@@ -291,7 +291,10 @@ def fix_missing_backlinks() -> dict:
             continue
         a_stem = a.stem
         a_title = _cached_parse_file(a).get("title") or a_stem.replace("-", " ").title()
-        text = _read_text(b)
+        # Read fresh from disk (not the lru-cached reader): a target may receive
+        # backlinks from several sources in one run, and each edit must build on
+        # the previous one rather than a stale cached copy.
+        text = b.read_text(encoding="utf-8")
         fm, body = _split_frontmatter(text)
         # Idempotency: skip if the target already references the source stem.
         if re.search(r"\[\[" + re.escape(a_stem) + r"[\]|#]", body):

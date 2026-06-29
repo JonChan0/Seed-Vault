@@ -148,7 +148,6 @@ def render_html(graph: dict) -> str:
 def render_wrapper(html_rel: str, node_count: int, link_count: int) -> str:
     today = date.today().isoformat()
     version = _framework_version()
-    name = Path(html_rel).stem
     return (
         "---\n"
         'title: "Viz - Wiki Network Graph"\n'

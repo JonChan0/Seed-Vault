@@ -496,3 +496,19 @@ class TestFrontmatterSchema:
         write_article(empty_vault / "wiki" / "concepts" / "nomodel.md", fm, "# X")
         res = lint.check_frontmatter_schema()
         assert any("nomodel.md" in i and "llm_model" in i for i in res["issues"])
+
+
+class TestFixMissingBacklinksMultiSource:
+    """Regression: a target missing backlinks from TWO sources must get BOTH."""
+
+    def test_both_backlinks_inserted(self, monkeypatch, empty_vault):
+        point_engine(monkeypatch, lint, empty_vault)
+        concepts = empty_vault / "wiki" / "concepts"
+        fm = _concept_fm
+        write_article(concepts / "a1.md", fm("A1"), "# A1\n\n[[beta|Beta]]\n")
+        write_article(concepts / "a2.md", fm("A2"), "# A2\n\n[[beta|Beta]]\n")
+        write_article(concepts / "beta.md", fm("Beta"), "# Beta\n\n## See Also\n\n- [[gamma|Gamma]]\n")
+        lint.fix_missing_backlinks()
+        body = (concepts / "beta.md").read_text(encoding="utf-8")
+        assert "[[a1|A1]]" in body
+        assert "[[a2|A2]]" in body
