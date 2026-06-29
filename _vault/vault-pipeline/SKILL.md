@@ -72,11 +72,31 @@ Capture `articles_created`.
 
 ---
 
-## Step 4: Verify — parallel `clean-room-verifier` fan-out
+## Step 4: Verify — deterministic gate, then parallel `clean-room-verifier` fan-out
 
-For each article in `articles_created`, spawn one `clean-room-verifier`. **Batch
-all spawns into a single message** for parallelism. Verifiers are read-only and
-context-isolated — they return reports, they do not edit.
+First run the **deterministic gate** over the new articles. It runs verify.py on
+each and partitions them into those that still need an LLM pass and those whose
+every extracted claim already matched a source exactly (no source warnings):
+
+```bash
+uv run python _vault/lib/verify.py --gate <wiki/concepts/stem.md ...> --json
+```
+
+Spawn a `clean-room-verifier` **only** for the articles in the `verify` list.
+For each article in the `skip` list, set `status: reviewed` deterministically and
+record it as **gate-skipped** in the report — do not spawn a verifier for it.
+
+> **Escape hatch:** if the user said "force verify" / passed `--force-verify`,
+> skip the gate and verify every article in `articles_created`. The gate trusts
+> exact numeric matches and cannot catch contradictions or qualitative errors —
+> `--force-verify` is the way to demand a full semantic pass.
+
+If the gate skips **everything**, Step 4 spawns zero agents — this is the common
+case and the pipeline's largest token saving.
+
+For each article in the gate's `verify` list, spawn one `clean-room-verifier`.
+**Batch all spawns into a single message** for parallelism. Verifiers are
+read-only and context-isolated — they return reports, they do not edit.
 
 ```
 Agent(subagent_type="clean-room-verifier",
@@ -91,16 +111,22 @@ Agent(subagent_type="clean-room-verifier",
 1. For any CONTRADICTED claim in a verifier report, apply the `recommended_fixes`
    to the article and bump its `updated:` date. If a verifier returned LOW
    confidence, set `status: draft` and note the unverified claims.
-2. If you edited any article, rebuild the index:
+2. Insert reciprocal backlinks deterministically (the synthesizer only authors
+   forward links; reverse links are pure string work):
+   ```bash
+   uv run python _vault/lib/lint.py --fix-backlinks
+   ```
+3. If you edited any article, rebuild the index:
    ```bash
    uv run python _vault/lib/index.py --rebuild-qmd
    ```
-3. Final lint (handles orphaned-source cleanup deferred by Step 3's `--no-cleanup`):
+4. Final lint (handles orphaned-source cleanup deferred by Step 3's `--no-cleanup`):
    ```bash
    uv run python _vault/lib/lint.py --json
    ```
-   Fix broken wikilinks and missing backlinks in the run's articles.
-4. Digest for the summary stats:
+   Fix any remaining broken wikilinks in the run's articles (missing backlinks
+   were already auto-fixed in sub-step 2).
+5. Digest for the summary stats:
    ```bash
    uv run python _vault/lib/digest.py
    ```
@@ -121,10 +147,12 @@ Pipeline complete — {{today}}
 Sources ingested:   {{N}}   (parallel source-ingestor)
 Concept articles:   {{C}} created, {{U}} updated   (wiki-synthesizer)
 Index rebuilt:      Yes (+ qmd)
-Verification:       {{V}} articles   (parallel clean-room-verifier)
+Verification:       {{V}} verified, {{S}} gate-skipped (clean exact matches)
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 New concepts:
   - [[concept-a|Concept A]]
+Gate-skipped (deterministically marked reviewed — spot-check if desired):
+  - {{stem or "None"}}
 Verification issues:
   - {{issue or "None — all claims supported"}}
 Lint issues:

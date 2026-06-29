@@ -412,3 +412,73 @@ class TestVerifyLowConfidence:
         assert confidence in ("LOW", "MEDIUM"), (
             f"Expected LOW or MEDIUM confidence for mostly-unmatched article, got {confidence!r}"
         )
+
+
+# ---------------------------------------------------------------------------
+# Phase 1: Hard verification gate
+# ---------------------------------------------------------------------------
+
+def _report(exact=0, partial=0, unmatched=0, warnings=None):
+    """Build a minimal verify_article-shaped report for gate logic tests."""
+    return {
+        "title": "T",
+        "article": "wiki/concepts/t.md",
+        "claims_found": exact + partial + unmatched,
+        "source_warnings": warnings or [],
+        "results": [],
+        "summary": {
+            "exact_matches": exact,
+            "partial_matches": partial,
+            "unmatched_claims": unmatched,
+            "confidence": "HIGH",
+        },
+    }
+
+
+class TestGateArticle:
+    """Pure gate decision on a report dict — no IO."""
+
+    def test_skip_when_all_exact_no_warnings(self):
+        assert verify.gate_article(_report(exact=5)) is False
+
+    def test_skip_when_zero_claims_no_warnings(self):
+        assert verify.gate_article(_report()) is False
+
+    def test_gate_in_when_unmatched(self):
+        assert verify.gate_article(_report(exact=3, unmatched=1)) is True
+
+    def test_gate_in_when_partial(self):
+        assert verify.gate_article(_report(exact=3, partial=1)) is True
+
+    def test_gate_in_when_source_warning(self):
+        assert verify.gate_article(_report(exact=5, warnings=["no sources"])) is True
+
+
+class TestGateArticlesInProcess:
+    """gate_articles over real fixture articles, repointed in-process."""
+
+    def test_returns_verify_and_skip_keys(self, monkeypatch, dummy_vault):
+        from conftest import point_engine
+        point_engine(monkeypatch, verify, dummy_vault)
+        paths = sorted((dummy_vault / "wiki" / "concepts").glob("*.md"))
+        result = verify.gate_articles(paths)
+        assert set(result.keys()) == {"verify", "skip"}
+        # Every input article lands in exactly one bucket.
+        union = result["verify"] + result["skip"]
+        assert len(union) == len(paths)
+
+
+class TestGateCLI:
+    """`verify.py --gate <article...> --json` returns {verify, skip}."""
+
+    def test_gate_cli_partitions_inputs(self, subprocess_vault):
+        articles = [
+            "wiki/concepts/dummy-gene-editing.md",
+            "wiki/concepts/dummy-human-genome.md",
+        ]
+        result = run_engine(subprocess_vault, "verify", "--gate", *articles, "--json")
+        assert result.returncode == 0, result.stderr
+        out = engine_json(result)
+        assert set(out.keys()) == {"verify", "skip"}
+        union = out["verify"] + out["skip"]
+        assert len(union) == len(articles)

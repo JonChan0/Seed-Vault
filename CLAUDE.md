@@ -150,7 +150,7 @@ Ten skills power this vault. They are installed as project-local skills in `.cla
 | `vault-index` | "Reindex" / "Rebuild index" — regenerates _index.md and rebuilds qmd search index |
 | `vault-qa` | "What does the wiki say about X?" — qmd retrieval + LLM synthesis |
 | `vault-verify` | "Fact-check this article" — deterministic claim extraction + clean-context LLM verification |
-| `vault-lint` | "Check the wiki health" — 7 deterministic structural checks + LLM review |
+| `vault-lint` | "Check the wiki health" — 8 deterministic structural checks + LLM review |
 | `vault-visualize` | "Visualize X" / "Chart Y" — generates HTML visualizations with wiki wrappers |
 | `vault-digest` | "Briefing" / "What's in the wiki?" — fully deterministic status summary |
 | `vault-migrate` | "Migrate my wiki" / "Apply framework updates" — updates existing articles after a framework version bump |
@@ -165,7 +165,7 @@ Ten skills power this vault. They are installed as project-local skills in `.cla
 | vault-index | index.py: generate _index.md + qmd | — (fully deterministic) |
 | vault-qa | qmd search for retrieval | Synthesize answer from retrieved articles |
 | vault-verify | verify.py: pattern match claims | Clean-context subagent for semantic verification |
-| vault-lint | lint.py: 7 structural checks | Review complex issues, suggest fixes |
+| vault-lint | lint.py: 8 structural checks + backlink auto-fix | Review complex issues, suggest fixes |
 | vault-digest | digest.py: full stats generation | — (fully deterministic) |
 | vault-migrate | migrate.py (existing) | Handle `requires_llm` migration steps |
 | vault-visualize | — | Full LLM: create HTML vizs |

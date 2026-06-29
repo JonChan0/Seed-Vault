@@ -472,6 +472,46 @@ def verify_article(article_path: Path) -> dict[str, Any]:
 
 
 # ---------------------------------------------------------------------------
+# Verification gate (deterministic — decides whether an LLM pass is needed)
+# ---------------------------------------------------------------------------
+
+def gate_article(report: dict[str, Any]) -> bool:
+    """Return True if an article needs the LLM verification pass (gate-in).
+
+    An article is gated IN when the deterministic matcher leaves any doubt:
+    a claim went unmatched, only partially matched, or its sources could not
+    be resolved (a source_warning). When every extracted claim matched a
+    source exactly and there are no source warnings, the article is gated OUT
+    (skipped) — the expensive clean-room verifier adds little there.
+
+    Note: verify.py only extracts *valued* claims and cannot detect
+    contradictions, so a gated-out article is trusted, not proven. Callers
+    expose a --force-verify escape hatch and record skipped articles.
+    """
+    summary = report["summary"]
+    return (
+        summary["unmatched_claims"] > 0
+        or summary["partial_matches"] > 0
+        or bool(report.get("source_warnings"))
+    )
+
+
+def gate_articles(article_paths: list[Path]) -> dict[str, list[str]]:
+    """Partition articles into those needing LLM verification and those skipped.
+
+    Returns ``{"verify": [rel_path, ...], "skip": [rel_path, ...]}`` where each
+    path is the report's vault-relative article string.
+    """
+    verify_list: list[str] = []
+    skip_list: list[str] = []
+    for path in article_paths:
+        report = verify_article(Path(path))
+        target = verify_list if gate_article(report) else skip_list
+        target.append(report["article"])
+    return {"verify": verify_list, "skip": skip_list}
+
+
+# ---------------------------------------------------------------------------
 # Human-readable output
 # ---------------------------------------------------------------------------
 
@@ -563,7 +603,17 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "article_path",
         type=Path,
-        help="Path to the wiki article to verify.",
+        nargs="+",
+        help="Path(s) to the wiki article(s) to verify.",
+    )
+    parser.add_argument(
+        "--gate",
+        action="store_true",
+        help=(
+            "Gate mode: partition the given articles into those needing an LLM "
+            "verification pass and those that can be skipped (all claims matched "
+            "sources exactly, no source warnings). Always prints JSON."
+        ),
     )
     parser.add_argument(
         "--json",
@@ -573,20 +623,33 @@ def main(argv: list[str] | None = None) -> int:
     )
     args = parser.parse_args(argv)
 
-    article_path = args.article_path
-    if not article_path.is_absolute():
-        article_path = Path.cwd() / article_path
-    article_path = article_path.resolve()
+    def _resolve(p: Path) -> Path:
+        return p if p.is_absolute() else (Path.cwd() / p).resolve()
 
-    if not article_path.exists():
-        print(f"Error: article not found: {article_path}", file=sys.stderr)
+    resolved = [_resolve(p) for p in args.article_path]
+
+    missing = next((p for p in resolved if not p.exists()), None)
+    if missing:
+        print(f"Error: article not found: {missing}", file=sys.stderr)
+        return 1
+    not_file = next((p for p in resolved if not p.is_file()), None)
+    if not_file:
+        print(f"Error: not a file: {not_file}", file=sys.stderr)
         return 1
 
-    if not article_path.is_file():
-        print(f"Error: not a file: {article_path}", file=sys.stderr)
+    if args.gate:
+        result = gate_articles(resolved)
+        print(json.dumps(result, indent=2, default=str))
+        return 0
+
+    if len(resolved) > 1:
+        print(
+            "Error: pass a single article, or use --gate for multiple.",
+            file=sys.stderr,
+        )
         return 1
 
-    report = verify_article(article_path)
+    report = verify_article(resolved[0])
 
     if args.json_output:
         print(json.dumps(report, indent=2, default=str))

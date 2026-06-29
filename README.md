@@ -176,7 +176,7 @@ others end-to-end.
 | `vault-index` | "Reindex" / "rebuild index" | Run index.py to rebuild _index.md and qmd search index; fully deterministic |
 | `vault-qa` | "What do we know about X?" / "research X" | Use qmd for retrieval, then synthesize an answer with citations and confidence rating |
 | `vault-verify` | "Fact-check the X article" / "verify this" | Run verify.py for claim extraction, then launch clean-context subagent for unbiased semantic verification |
-| `vault-lint` | "Check the wiki health" / "lint" | Run lint.py for 7 structural checks, then review complex issues and suggest fixes |
+| `vault-lint` | "Check the wiki health" / "lint" | Run lint.py for 8 structural checks (incl. frontmatter schema) + `--fix-backlinks`, then review complex issues |
 | `vault-visualize` | "Visualize X as a chart" / "map out X" | Generate self-contained HTML chart/diagram + Obsidian wrapper page |
 | `vault-digest` | "Briefing" / "what's in the wiki?" | Run digest.py for fully deterministic vault status summary |
 | `vault-migrate` | "Migrate my wiki" / "apply updates" | Run migrate.py for structural changes, handle LLM migration steps if needed |

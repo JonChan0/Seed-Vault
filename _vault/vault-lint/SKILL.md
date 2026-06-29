@@ -15,14 +15,15 @@ You are auditing the Seed Vault wiki for structural issues, broken connections, 
 uv run python _vault/lib/lint.py --json
 ```
 
-This runs 7 checks:
+This runs 8 checks:
 1. **Broken wikilinks** — links pointing to non-existent articles (error)
 2. **Orphan pages** — articles with no incoming links (warning)
-3. **Missing backlinks** — one-directional links that should be bidirectional (warning)
+3. **Missing backlinks** — one-directional links that should be bidirectional (warning, auto-fixable)
 4. **Stale articles** — articles older than their sources (info)
 5. **Index sync** — articles missing from or extra in `_index.md` (warning)
 6. **Raw coverage** — raw files with no source summary (info)
 7. **Tag frequency** — singleton tags that may be typos (info)
+8. **Frontmatter schema** — missing required keys, invalid type/status enum, stale `framework_version`, or empty `llm_model` (warning)
 
 Read the JSON output.
 
@@ -37,7 +38,13 @@ uv run python _vault/lib/index.py
 
 For **raw coverage** gaps, suggest: "{{N}} raw files have no source summary. Run `vault-ingest` to process them."
 
-For **missing backlinks**, fix manually: add a `[[source-article|Source Article]]` entry under the target article's `## See Also` section. The engine no longer auto-fixes these.
+For **missing backlinks**, run the deterministic fixer — it inserts each missing reciprocal `[[stem|Title]]` under the target article's `## See Also` section and bumps `updated:`:
+```bash
+uv run python _vault/lib/lint.py --fix-backlinks
+```
+It is idempotent and never touches meta/index files. No manual editing needed.
+
+For **frontmatter schema** issues, correct the flagged keys/enums directly, or run `vault-migrate` if the `framework_version` is simply behind.
 
 ---
 

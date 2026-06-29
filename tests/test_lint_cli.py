@@ -58,14 +58,17 @@ def test_summary_line_always_present_even_when_clean(capsys):
     assert "0 info" in out
 
 
-def test_fix_backlinks_flag_removed():
-    """Flag implementation deleted; CLI should reject the option."""
-    try:
-        _run_main(["--fix-backlinks"], [])
-    except SystemExit as e:
-        assert e.code == 2
-        return
-    raise AssertionError("--fix-backlinks should have been removed")
+def test_fix_backlinks_flag_accepted():
+    """--fix-backlinks is a recognised option (re-added in the lean pipeline)."""
+    with (
+        patch.object(sys, "argv", ["lint.py", "--fix-backlinks"]),
+        patch.object(
+            lint,
+            "fix_missing_backlinks",
+            return_value={"check": "missing_backlinks_fixed", "fixed": [], "auto_fixable": True},
+        ),
+    ):
+        assert lint.main() == 0
 
 
 # ---------------------------------------------------------------------------
@@ -91,11 +94,12 @@ _EXPECTED_CHECKS = {
     "index_sync": "warning",
     "raw_coverage": "info",
     "tag_frequency": "info",
+    "frontmatter_schema": "warning",
 }
 
 
 def test_all_checks_present_in_output(subprocess_vault):
-    """All 7 checks must appear in the JSON output with correct severities."""
+    """All checks must appear in the JSON output with correct severities."""
     by_check, _ = _lint_results(subprocess_vault)
     for check_name, expected_severity in _EXPECTED_CHECKS.items():
         assert check_name in by_check, f"Check {check_name!r} missing from lint output"
@@ -323,3 +327,188 @@ def test_index_sync_clears_after_rebuild(subprocess_vault):
     assert is_issues == [], (
         f"Expected no index_sync issues after index rebuild, got: {is_issues}"
     )
+
+
+# ---------------------------------------------------------------------------
+# Phase 2: Deterministic backlink insertion
+# ---------------------------------------------------------------------------
+
+from conftest import point_engine  # noqa: E402
+import datetime as _dt  # noqa: E402
+
+
+def _today() -> str:
+    return _dt.date.today().isoformat()
+
+
+def _concept_fm(title: str, updated: str = "2026-01-01") -> dict:
+    return {
+        "title": f'"{title}"',
+        "type": "concept",
+        "created": "2026-01-01",
+        "updated": updated,
+        "sources": [],
+        "tags": ["dummy/test"],
+        "status": "draft",
+        "llm_model": '"claude-opus-4-8"',
+        "framework_version": '"3.0.0"',
+    }
+
+
+def _make_one_way_pair(vault: Path, b_has_see_also: bool = True):
+    """A links B; B does NOT link A. Returns (a_path, b_path)."""
+    concepts = vault / "wiki" / "concepts"
+    a = write_article(
+        concepts / "alpha.md",
+        _concept_fm("Alpha"),
+        "# Alpha\n\nLinks to [[beta|Beta]] here.\n\n## See Also\n\n- [[beta|Beta]]\n",
+    )
+    b_body = "# Beta\n\nNo link back to alpha.\n"
+    if b_has_see_also:
+        b_body += "\n## See Also\n\n- [[gamma|Gamma]]\n"
+    b = write_article(concepts / "beta.md", _concept_fm("Beta"), b_body)
+    return a, b
+
+
+class TestBacklinkCheckAutoFixable:
+    def test_check_reports_auto_fixable_true(self, monkeypatch, empty_vault):
+        point_engine(monkeypatch, lint, empty_vault)
+        _make_one_way_pair(empty_vault)
+        res = lint.check_missing_backlinks()
+        assert res["auto_fixable"] is True
+        assert any("beta.md" in i for i in res["issues"])
+
+
+class TestFixMissingBacklinks:
+    def test_inserts_reciprocal_link(self, monkeypatch, empty_vault):
+        point_engine(monkeypatch, lint, empty_vault)
+        _a, b = _make_one_way_pair(empty_vault)
+        lint.fix_missing_backlinks()
+        body = b.read_text(encoding="utf-8")
+        assert "[[alpha|Alpha]]" in body
+
+    def test_idempotent(self, monkeypatch, empty_vault):
+        point_engine(monkeypatch, lint, empty_vault)
+        _a, b = _make_one_way_pair(empty_vault)
+        lint.fix_missing_backlinks()
+        lint.fix_missing_backlinks()
+        body = b.read_text(encoding="utf-8")
+        assert body.count("[[alpha|Alpha]]") == 1
+
+    def test_bumps_updated(self, monkeypatch, empty_vault):
+        point_engine(monkeypatch, lint, empty_vault)
+        _a, b = _make_one_way_pair(empty_vault)
+        lint.fix_missing_backlinks()
+        body = b.read_text(encoding="utf-8")
+        assert f"updated: {_today()}" in body
+
+    def test_creates_see_also_when_absent(self, monkeypatch, empty_vault):
+        point_engine(monkeypatch, lint, empty_vault)
+        _a, b = _make_one_way_pair(empty_vault, b_has_see_also=False)
+        lint.fix_missing_backlinks()
+        body = b.read_text(encoding="utf-8")
+        assert "## See Also" in body
+        assert "[[alpha|Alpha]]" in body
+
+    def test_resolves_after_fix(self, monkeypatch, empty_vault):
+        point_engine(monkeypatch, lint, empty_vault)
+        _make_one_way_pair(empty_vault)
+        lint.fix_missing_backlinks()
+        res = lint.check_missing_backlinks()
+        assert not any("beta.md" in i and "alpha" in i.lower() for i in res["issues"])
+
+
+class TestFixBacklinksCLI:
+    def test_cli_runs_and_reports(self, subprocess_vault):
+        # clean fixture is already bidirectional → fixer is a safe no-op,
+        # exits 0 and prints a summary line.
+        result = run_engine(subprocess_vault, "lint", "--fix-backlinks")
+        assert result.returncode == 0, result.stderr
+        assert "backlink" in result.stdout.lower()
+
+
+# ---------------------------------------------------------------------------
+# Phase 3: Frontmatter schema validation
+# ---------------------------------------------------------------------------
+
+class TestFrontmatterSchema:
+    def _valid_concept(self) -> dict:
+        return {
+            "title": '"Valid"',
+            "type": "concept",
+            "created": "2026-01-01",
+            "updated": "2026-01-01",
+            "sources": [],
+            "tags": ["dummy/test"],
+            "status": "draft",
+            "llm_model": '"claude-opus-4-8"',
+            "framework_version": '"3.0.0"',
+        }
+
+    def _setup(self, monkeypatch, vault):
+        point_engine(monkeypatch, lint, vault)
+        monkeypatch.setattr(lint, "_current_framework_version", lambda: "3.0.0")
+
+    def test_valid_article_passes(self, monkeypatch, empty_vault):
+        self._setup(monkeypatch, empty_vault)
+        write_article(empty_vault / "wiki" / "concepts" / "ok.md", self._valid_concept(), "# Valid")
+        res = lint.check_frontmatter_schema()
+        assert res["check"] == "frontmatter_schema"
+        assert res["severity"] == "warning"
+        assert res["issues"] == []
+
+    def test_missing_required_key_flagged(self, monkeypatch, empty_vault):
+        self._setup(monkeypatch, empty_vault)
+        fm = self._valid_concept()
+        del fm["sources"]
+        write_article(empty_vault / "wiki" / "concepts" / "nosrc.md", fm, "# X")
+        res = lint.check_frontmatter_schema()
+        assert any("nosrc.md" in i and "sources" in i for i in res["issues"])
+
+    def test_invalid_type_flagged(self, monkeypatch, empty_vault):
+        self._setup(monkeypatch, empty_vault)
+        fm = self._valid_concept()
+        fm["type"] = "bogus"
+        write_article(empty_vault / "wiki" / "concepts" / "badtype.md", fm, "# X")
+        res = lint.check_frontmatter_schema()
+        assert any("badtype.md" in i and "type" in i for i in res["issues"])
+
+    def test_invalid_status_flagged(self, monkeypatch, empty_vault):
+        self._setup(monkeypatch, empty_vault)
+        fm = self._valid_concept()
+        fm["status"] = "published"
+        write_article(empty_vault / "wiki" / "concepts" / "badstatus.md", fm, "# X")
+        res = lint.check_frontmatter_schema()
+        assert any("badstatus.md" in i and "status" in i for i in res["issues"])
+
+    def test_stale_framework_version_flagged(self, monkeypatch, empty_vault):
+        self._setup(monkeypatch, empty_vault)
+        fm = self._valid_concept()
+        fm["framework_version"] = '"2.0.0"'
+        write_article(empty_vault / "wiki" / "concepts" / "stale.md", fm, "# X")
+        res = lint.check_frontmatter_schema()
+        assert any("stale.md" in i and "framework_version" in i for i in res["issues"])
+
+    def test_empty_llm_model_flagged(self, monkeypatch, empty_vault):
+        self._setup(monkeypatch, empty_vault)
+        fm = self._valid_concept()
+        fm["llm_model"] = '""'
+        write_article(empty_vault / "wiki" / "concepts" / "nomodel.md", fm, "# X")
+        res = lint.check_frontmatter_schema()
+        assert any("nomodel.md" in i and "llm_model" in i for i in res["issues"])
+
+
+class TestFixMissingBacklinksMultiSource:
+    """Regression: a target missing backlinks from TWO sources must get BOTH."""
+
+    def test_both_backlinks_inserted(self, monkeypatch, empty_vault):
+        point_engine(monkeypatch, lint, empty_vault)
+        concepts = empty_vault / "wiki" / "concepts"
+        fm = _concept_fm
+        write_article(concepts / "a1.md", fm("A1"), "# A1\n\n[[beta|Beta]]\n")
+        write_article(concepts / "a2.md", fm("A2"), "# A2\n\n[[beta|Beta]]\n")
+        write_article(concepts / "beta.md", fm("Beta"), "# Beta\n\n## See Also\n\n- [[gamma|Gamma]]\n")
+        lint.fix_missing_backlinks()
+        body = (concepts / "beta.md").read_text(encoding="utf-8")
+        assert "[[a1|A1]]" in body
+        assert "[[a2|A2]]" in body
