@@ -44,6 +44,15 @@ Read the relevant wiki articles and source summaries. Pull out the data points n
 
 If data is implicit (e.g., "visualize connections between concepts"), derive it programmatically: read all wiki files, extract `[[wikilinks]]`, build an adjacency list.
 
+> **Shortcut — wiki network graph:** for the whole-wiki `[[wikilink]]` network
+> specifically, do **not** hand-write it. Run the deterministic generator, which
+> builds the adjacency and emits the self-contained D3 HTML plus the Obsidian
+> wrapper with zero LLM tokens:
+> ```bash
+> uv run python _vault/lib/viz.py --network
+> ```
+> Reserve the LLM path below for bespoke charts (bar/line/timeline/etc.).
+
 ---
 
 ## Step 3: Generate the HTML
