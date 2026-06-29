@@ -94,11 +94,12 @@ _EXPECTED_CHECKS = {
     "index_sync": "warning",
     "raw_coverage": "info",
     "tag_frequency": "info",
+    "frontmatter_schema": "warning",
 }
 
 
 def test_all_checks_present_in_output(subprocess_vault):
-    """All 7 checks must appear in the JSON output with correct severities."""
+    """All checks must appear in the JSON output with correct severities."""
     by_check, _ = _lint_results(subprocess_vault)
     for check_name, expected_severity in _EXPECTED_CHECKS.items():
         assert check_name in by_check, f"Check {check_name!r} missing from lint output"
@@ -424,3 +425,74 @@ class TestFixBacklinksCLI:
         result = run_engine(subprocess_vault, "lint", "--fix-backlinks")
         assert result.returncode == 0, result.stderr
         assert "backlink" in result.stdout.lower()
+
+
+# ---------------------------------------------------------------------------
+# Phase 3: Frontmatter schema validation
+# ---------------------------------------------------------------------------
+
+class TestFrontmatterSchema:
+    def _valid_concept(self) -> dict:
+        return {
+            "title": '"Valid"',
+            "type": "concept",
+            "created": "2026-01-01",
+            "updated": "2026-01-01",
+            "sources": [],
+            "tags": ["dummy/test"],
+            "status": "draft",
+            "llm_model": '"claude-opus-4-8"',
+            "framework_version": '"3.0.0"',
+        }
+
+    def _setup(self, monkeypatch, vault):
+        point_engine(monkeypatch, lint, vault)
+        monkeypatch.setattr(lint, "_current_framework_version", lambda: "3.0.0")
+
+    def test_valid_article_passes(self, monkeypatch, empty_vault):
+        self._setup(monkeypatch, empty_vault)
+        write_article(empty_vault / "wiki" / "concepts" / "ok.md", self._valid_concept(), "# Valid")
+        res = lint.check_frontmatter_schema()
+        assert res["check"] == "frontmatter_schema"
+        assert res["severity"] == "warning"
+        assert res["issues"] == []
+
+    def test_missing_required_key_flagged(self, monkeypatch, empty_vault):
+        self._setup(monkeypatch, empty_vault)
+        fm = self._valid_concept()
+        del fm["sources"]
+        write_article(empty_vault / "wiki" / "concepts" / "nosrc.md", fm, "# X")
+        res = lint.check_frontmatter_schema()
+        assert any("nosrc.md" in i and "sources" in i for i in res["issues"])
+
+    def test_invalid_type_flagged(self, monkeypatch, empty_vault):
+        self._setup(monkeypatch, empty_vault)
+        fm = self._valid_concept()
+        fm["type"] = "bogus"
+        write_article(empty_vault / "wiki" / "concepts" / "badtype.md", fm, "# X")
+        res = lint.check_frontmatter_schema()
+        assert any("badtype.md" in i and "type" in i for i in res["issues"])
+
+    def test_invalid_status_flagged(self, monkeypatch, empty_vault):
+        self._setup(monkeypatch, empty_vault)
+        fm = self._valid_concept()
+        fm["status"] = "published"
+        write_article(empty_vault / "wiki" / "concepts" / "badstatus.md", fm, "# X")
+        res = lint.check_frontmatter_schema()
+        assert any("badstatus.md" in i and "status" in i for i in res["issues"])
+
+    def test_stale_framework_version_flagged(self, monkeypatch, empty_vault):
+        self._setup(monkeypatch, empty_vault)
+        fm = self._valid_concept()
+        fm["framework_version"] = '"2.0.0"'
+        write_article(empty_vault / "wiki" / "concepts" / "stale.md", fm, "# X")
+        res = lint.check_frontmatter_schema()
+        assert any("stale.md" in i and "framework_version" in i for i in res["issues"])
+
+    def test_empty_llm_model_flagged(self, monkeypatch, empty_vault):
+        self._setup(monkeypatch, empty_vault)
+        fm = self._valid_concept()
+        fm["llm_model"] = '""'
+        write_article(empty_vault / "wiki" / "concepts" / "nomodel.md", fm, "# X")
+        res = lint.check_frontmatter_schema()
+        assert any("nomodel.md" in i and "llm_model" in i for i in res["issues"])

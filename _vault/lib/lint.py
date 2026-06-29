@@ -466,6 +466,81 @@ def check_tag_frequency() -> dict:
     }
 
 
+# ---------------------------------------------------------------------------
+# Check 8: Frontmatter schema validation
+# ---------------------------------------------------------------------------
+
+VERSION_FILE = VAULT_ROOT / "_vault" / "VERSION"
+
+_VALID_TYPES = {"concept", "source-summary", "visualization", "output"}
+_VALID_STATUS = {"draft", "reviewed", "verified"}
+
+# Required frontmatter keys per article type. Kept deliberately conservative:
+# visualization wrappers carry no llm_model, output/meta files are minimal.
+_BASE_REQUIRED = {"title", "type", "created", "updated", "status", "tags", "framework_version"}
+_REQUIRED_BY_TYPE = {
+    "concept": _BASE_REQUIRED | {"sources", "llm_model"},
+    "source-summary": _BASE_REQUIRED | {"sources", "llm_model"},
+    "visualization": _BASE_REQUIRED | {"sources"},
+    "output": {"title", "type", "created", "updated", "tags"},
+}
+
+
+def _current_framework_version() -> str:
+    """Read the framework version from _vault/VERSION ('' if unavailable)."""
+    try:
+        return VERSION_FILE.read_text(encoding="utf-8").strip()
+    except (OSError, UnicodeDecodeError):
+        return ""
+
+
+def check_frontmatter_schema() -> dict:
+    """Validate required keys, enum values, and version stamping per article.
+
+    Deterministic replacement for trusting the LLM to stamp frontmatter
+    correctly: catches missing required keys, invalid type/status enums, a
+    stale framework_version, and an empty llm_model.
+    """
+    issues: list[str] = []
+    current_version = _current_framework_version()
+
+    for f in _content_wiki_files():
+        fm = _cached_parse_file(f)
+        rel = f.relative_to(VAULT_ROOT)
+        art_type = fm.get("type")
+
+        # type enum (also selects the required-key set)
+        if art_type not in _VALID_TYPES:
+            issues.append(f"{rel}: invalid or missing type: {art_type!r}")
+            continue
+
+        for key in sorted(_REQUIRED_BY_TYPE[art_type]):
+            if key not in fm or fm.get(key) in (None, ""):
+                issues.append(f"{rel}: missing required key '{key}' for type {art_type}")
+
+        status = fm.get("status")
+        if status is not None and status not in _VALID_STATUS:
+            issues.append(f"{rel}: invalid status: {status!r}")
+
+        fw = fm.get("framework_version")
+        if current_version and fw is not None and str(fw) != current_version:
+            issues.append(
+                f"{rel}: stale framework_version {fw!r} (current is {current_version!r})"
+            )
+
+        if "llm_model" in _REQUIRED_BY_TYPE[art_type]:
+            model = fm.get("llm_model")
+            if model is not None and str(model).strip() == "":
+                issues.append(f"{rel}: empty llm_model")
+
+    return {
+        "check": "frontmatter_schema",
+        "severity": "warning",
+        "issues": issues,
+        "auto_fixable": False,
+    }
+
+
 ALL_CHECKS = [
     check_broken_wikilinks,
     check_orphan_pages,
@@ -474,6 +549,7 @@ ALL_CHECKS = [
     check_index_sync,
     check_raw_coverage,
     check_tag_frequency,
+    check_frontmatter_schema,
 ]
 
 def run_all_checks() -> list[dict]:
