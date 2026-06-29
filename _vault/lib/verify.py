@@ -628,13 +628,13 @@ def main(argv: list[str] | None = None) -> int:
 
     resolved = [_resolve(p) for p in args.article_path]
 
-    missing = [p for p in resolved if not p.exists()]
+    missing = next((p for p in resolved if not p.exists()), None)
     if missing:
-        print(f"Error: article not found: {missing[0]}", file=sys.stderr)
+        print(f"Error: article not found: {missing}", file=sys.stderr)
         return 1
-    not_files = [p for p in resolved if not p.is_file()]
-    if not_files:
-        print(f"Error: not a file: {not_files[0]}", file=sys.stderr)
+    not_file = next((p for p in resolved if not p.is_file()), None)
+    if not_file:
+        print(f"Error: not a file: {not_file}", file=sys.stderr)
         return 1
 
     if args.gate:
