@@ -48,6 +48,8 @@ wiki/
 !tests/fixtures/clean/wiki/
 !tests/fixtures/clean/wiki/**
 
+tests/local/*
+
 # Outputs and visualizations — ephemeral, not tracked
 outputs/
 !outputs/.gitkeep
