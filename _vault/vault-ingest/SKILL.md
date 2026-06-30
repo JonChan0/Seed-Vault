@@ -129,7 +129,20 @@ Never truncate or summarize the raw content — preserve everything.
 
 ## Step 5: Create Source Summary in wiki/sources/
 
-Write `wiki/sources/summary-{{name}}.md`:
+**First, scaffold the summary deterministically.** The raw backlinks
+(`sources` and `original_source` frontmatter) are mechanical — derived from the
+raw filename and title — so an engine fills them, not you:
+
+```bash
+uv run python _vault/lib/summary_scaffold.py raw/{{name}}.md
+```
+
+This creates `wiki/sources/summary-{{name}}.md` with the deterministic
+`sources`/`original_source` backlinks and an empty body template. **Then `Edit`
+that file** to fill the semantic fields — body sections, `tags`, `llm_model`,
+and any `source_url`/`author` the scaffold omits (add those frontmatter keys via
+`Edit`). Do **not** rewrite it with `Write`, and do **not** touch `sources` or
+`original_source` (the engine owns them):
 
 ```markdown
 ---
@@ -137,8 +150,8 @@ title: "Summary - {{Full Title}}"
 type: source-summary
 created: {{today}}
 updated: {{today}}
-sources: ["[[raw/{{name}}|{{Full Title}}]]"]
-original_source: "[[raw/{{name}}|{{Full Title}}]]"
+sources: ["[[raw/{{name}}|{{Full Title}}]]"]          # deterministic — do not edit
+original_source: "[[raw/{{name}}|{{Full Title}}]]"    # deterministic — do not edit
 source_url: "{{url}}"
 author: "{{author}}"
 tags: [{{inferred tags}}]
@@ -161,10 +174,10 @@ framework_version: "{{read from _vault/VERSION}}"
 *(List concepts this source informs, as [[wikilinks]] — link to existing concept articles if they exist, or flag new ones needed)*
 
 - [[concept-name|Concept Name]] *(exists | needs article)*
-
-## Raw Source
-[[raw/{{name}}|{{Full Title}}]]
 ```
+
+> The summary carries the raw backlink only in its `sources`/`original_source`
+> frontmatter — there is no `## Raw Source` body section.
 
 To find existing concept articles for the "Concepts Extracted" section:
 1. Run `qmd query "{{concept keywords}}"` if qmd is available, OR
